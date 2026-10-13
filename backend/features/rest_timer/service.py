@@ -1,0 +1,99 @@
+import logging
+import math
+from collections import Counter
+from dataclasses import replace
+from datetime import UTC, datetime, timedelta
+from uuid import uuid4
+
+from common.errors import NotFound
+from common.gateway.protocol import JobQueue
+from features.rest_timer._pure import build_rest_finished_message
+from features.rest_timer.protocol import PushSender, RestTimerRepository
+from features.rest_timer.types import PushResult, RestTimer
+
+logger = logging.getLogger(__name__)
+
+NOTIFY_REST_FINISHED_TASK_NAME = "rest_timer.notify_rest_finished"
+# Celery の expires は送信時刻を起点に数えるため、実行予定の時刻に猶予を足す
+NOTIFICATION_EXPIRY_GRACE_SECONDS = 60
+
+
+def register_push_subscription(repo: RestTimerRepository, *, endpoint: str, p256dh: str, auth: str) -> None:
+    repo.save_push_subscription(endpoint=endpoint, p256dh=p256dh, auth=auth)
+
+
+def get_rest_timer(repo: RestTimerRepository) -> RestTimer | None:
+    return repo.get_rest_timer()
+
+
+def start_rest_timer(repo: RestTimerRepository, job_queue: JobQueue, *, seconds: int, next_set_label: str) -> RestTimer:
+    # ジョブへは終了時刻を秒の整数で渡すため、DB の値と一致するよう秒にそろえる
+    started_at = datetime.now(UTC).replace(microsecond=0)
+    timer = RestTimer(
+        uid=str(uuid4()),
+        started_at=started_at,
+        ends_at=started_at + timedelta(seconds=seconds),
+        total_seconds=seconds,
+        next_set_label=next_set_label,
+    )
+    _enqueue_notification(job_queue, timer, countdown_seconds=seconds)
+    repo.save_rest_timer(timer)
+    return timer
+
+
+def extend_rest_timer(repo: RestTimerRepository, job_queue: JobQueue, *, seconds: int) -> RestTimer:
+    timer = repo.get_rest_timer()
+    if timer is None:
+        raise NotFound("動いているレストタイマーがありません")
+    extended = replace(
+        timer,
+        ends_at=timer.ends_at + timedelta(seconds=seconds),
+        total_seconds=timer.total_seconds + seconds,
+    )
+    countdown_seconds = math.ceil((extended.ends_at - datetime.now(UTC)).total_seconds())
+    _enqueue_notification(job_queue, extended, countdown_seconds=countdown_seconds)
+    repo.save_rest_timer(extended)
+    return extended
+
+
+def stop_rest_timer(repo: RestTimerRepository) -> None:
+    repo.delete_rest_timer()
+
+
+def notify_rest_finished(
+    repo: RestTimerRepository, push_sender: PushSender, *, uid: str, ends_at: int, next_set_label: str
+) -> None:
+    # 停止・延長・置き換えのあとに残った予約と、同じ予約の再実行は、この削除が0行になって通知しない
+    is_deleted = repo.delete_finished_rest_timer(uid=uid, ends_at=datetime.fromtimestamp(ends_at, UTC))
+    if not is_deleted:
+        return
+
+    message = build_rest_finished_message(next_set_label)
+    subscriptions = repo.list_push_subscriptions()
+    result_counts: Counter[PushResult] = Counter()
+    for subscription in subscriptions:
+        result = push_sender.send(subscription, title=message.title, body=message.body)
+        result_counts[result] += 1
+        if result is PushResult.expired:
+            repo.delete_push_subscription(subscription.id)
+
+    log = logger.warning if result_counts[PushResult.failed] > 0 else logger.info
+    log(
+        "レスト終了を通知しました: uid=%s devices=%d delivered=%d expired=%d failed=%d",
+        uid,
+        len(subscriptions),
+        result_counts[PushResult.delivered],
+        result_counts[PushResult.expired],
+        result_counts[PushResult.failed],
+    )
+
+
+def _enqueue_notification(job_queue: JobQueue, timer: RestTimer, *, countdown_seconds: int) -> None:
+    job_queue.enqueue(
+        NOTIFY_REST_FINISHED_TASK_NAME,
+        countdown_seconds=countdown_seconds,
+        expires_seconds=countdown_seconds + NOTIFICATION_EXPIRY_GRACE_SECONDS,
+        uid=timer.uid,
+        ends_at=int(timer.ends_at.timestamp()),
+        next_set_label=timer.next_set_label,
+    )

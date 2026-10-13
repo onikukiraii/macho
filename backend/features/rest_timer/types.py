@@ -24,3 +24,9 @@ class RestTimer:
     ends_at: datetime
     total_seconds: int
     next_set_label: str
+
+
+@dataclass(frozen=True)
+class PushMessage:
+    title: str
+    body: str

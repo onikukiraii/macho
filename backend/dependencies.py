@@ -14,6 +14,9 @@ from features.exercise.protocol import ExerciseRepository
 from features.exercise.repository import DbExerciseRepository
 from features.program.protocol import ProgramRepository
 from features.program.repository import DbProgramRepository
+from features.rest_timer.gateway import WebPushSender
+from features.rest_timer.protocol import PushSender, RestTimerRepository
+from features.rest_timer.repository import DbRestTimerRepository
 from features.training_log.protocol import TrainingLogRepository
 from features.training_log.repository import DbTrainingLogRepository
 from worker.app import celery_app
@@ -48,3 +51,13 @@ def get_program_repository(session: SessionDep) -> ProgramRepository:
 
 def get_training_log_repository(session: SessionDep) -> TrainingLogRepository:
     return DbTrainingLogRepository(session)
+
+
+def get_rest_timer_repository(session: SessionDep) -> RestTimerRepository:
+    return DbRestTimerRepository(session)
+
+
+def get_push_sender() -> PushSender:
+    return WebPushSender(
+        vapid_private_key=settings.vapid_private_key.get_secret_value(), vapid_subject=settings.vapid_subject
+    )

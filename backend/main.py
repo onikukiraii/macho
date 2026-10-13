@@ -13,6 +13,7 @@ from starlette.types import Scope
 
 from common.config import settings
 from features.exercise.router import router as exercise_router
+from features.rest_timer.router import router as rest_timer_router
 from features.training_log.router import router as training_log_router
 
 logger = logging.getLogger(__name__)
@@ -60,6 +61,7 @@ def create_app(*, frontend_dist_dir: Path | None) -> FastAPI:
 
     app.include_router(exercise_router)
     app.include_router(training_log_router)
+    app.include_router(rest_timer_router)
 
     # "/" の mount は全パスに一致するため、ルーターの登録はこの前に置く
     if frontend_dist_dir is not None:

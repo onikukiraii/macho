@@ -78,22 +78,6 @@ class TestCreate:
         assert [day.day for day in created.weeks[0].days] == [1, 2]
         assert [planned.order for planned in created.weeks[0].days[1].planned_exercises] == [1, 2]
 
-    def test_渡された順の_Day_に渡された順の_uid_を割り当てる(self, db_session: Session) -> None:
-        repo = DbProgramRepository(db_session)
-        exercise_id = _exercise_id(db_session)
-
-        created = repo.create(
-            uid="p1",
-            day_uids=["d1", "d2", "d3"],
-            program=_program(name="増量期", start_date=date(2026, 9, 28), exercise_id=exercise_id),
-        )
-
-        assert [(week.week, day.day, day.uid) for week in created.weeks for day in week.days] == [
-            (1, 1, "d3"),
-            (1, 2, "d2"),
-            (2, 1, "d1"),
-        ]
-
     def test_予定種目の全フィールドを入力のとおりに保存して取得できる(self, db_session: Session) -> None:
         repo = DbProgramRepository(db_session)
         exercise_id = _exercise_id(db_session)
@@ -153,7 +137,7 @@ class TestCreate:
             planned.target_percent,
         ) == (exercise_id, 7, 4, 6, 8, 8.5, 82.5)
 
-    def test_Day_の_uid_は渡した順に週と_Day_の並びへ割り当てる(self, db_session: Session) -> None:
+    def test_渡された順の_Day_に渡された順の_uid_を割り当てる(self, db_session: Session) -> None:
         repo = DbProgramRepository(db_session)
         exercise_id = _exercise_id(db_session)
 
@@ -163,7 +147,11 @@ class TestCreate:
             program=_program(name="増量期", start_date=date(2026, 9, 28), exercise_id=exercise_id),
         )
 
-        assert [day.uid for week in created.weeks for day in week.days] == ["d1", "d2", "d3"]
+        assert [(week.week, day.day, day.uid) for week in created.weeks for day in week.days] == [
+            (1, 1, "d3"),
+            (1, 2, "d2"),
+            (2, 1, "d1"),
+        ]
 
     @pytest.mark.parametrize("day_uids", [["d1", "d2"], ["d1", "d2", "d3", "d4"]])
     def test_Day_の_uid_の件数が_Day_の件数と合わなければ例外(self, db_session: Session, day_uids: list[str]) -> None:

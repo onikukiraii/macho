@@ -8,7 +8,7 @@ from features.program.types import NewProgram, NewProgramDay, NewProgramWeek, We
 
 
 class TestCreateProgram:
-    def test_週と_Day_の昇順に_uid_を割り当てて作成する(self, db_session: Session) -> None:
+    def test_Day_の件数ぶん重複しない_uid_を割り当てて作成する(self, db_session: Session) -> None:
         repo = DbProgramRepository(db_session)
         program = NewProgram(
             name="増量期",

@@ -56,7 +56,7 @@ function DaySelectForm({ initialDate, today, options }: DaySelectFormProps): Rea
       <InputField label="日付">
         <Input type="date" required max={today} value={date} onChange={(event) => setDate(event.target.value)} />
       </InputField>
-      <fieldset className="flex flex-col">
+      <fieldset className="flex flex-col dark:[&_label>span:last-child]:text-solid-gray-50">
         <legend className="text-std-16B-170">Day</legend>
         {options.map((option) => (
           <Radio

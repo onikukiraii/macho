@@ -60,7 +60,7 @@ export function RestTimerSheet({ open, onClose, running, notificationStatus, onE
           <p className="text-dns-14N-130 text-muted-foreground">通知はオフです。終了の通知は届きません</p>
         )}
         <div className="grid w-full grid-cols-2 gap-4">
-          <Button size="lg" variant="outline" disabled={extendPending} onClick={() => void extendRestTimerOnce()}>
+          <Button size="lg" variant="outline" className="dark:bg-transparent dark:text-key-300" disabled={extendPending} onClick={() => void extendRestTimerOnce()}>
             +30秒
           </Button>
           <Button

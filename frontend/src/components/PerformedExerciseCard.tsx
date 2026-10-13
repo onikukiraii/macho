@@ -139,7 +139,7 @@ export function PerformedExerciseCard({
                 editColumns(updateColumn(index, { weight: event.target.value }))
               }}
               onBlur={() => commitWeight(index)}
-              className="h-12 rounded-8 border border-solid-gray-600 bg-white text-center text-oln-16N-100 text-solid-gray-800 placeholder:text-solid-gray-420 aria-invalid:border-error-1"
+              className="h-12 rounded-8 border border-solid-gray-600 bg-white text-center text-oln-16N-100 text-solid-gray-800 dark:bg-solid-gray-900 dark:text-solid-gray-50 placeholder:text-solid-gray-420 aria-invalid:border-error-1"
             />
             <input
               type="number"
@@ -154,7 +154,7 @@ export function PerformedExerciseCard({
               value={column.reps}
               onChange={(event) => editColumns(updateColumn(index, { reps: event.target.value }))}
               onBlur={() => commitColumns(columns)}
-              className="h-12 rounded-8 border border-solid-gray-600 bg-white text-center text-oln-16N-100 text-solid-gray-800 placeholder:text-solid-gray-420 aria-invalid:border-error-1"
+              className="h-12 rounded-8 border border-solid-gray-600 bg-white text-center text-oln-16N-100 text-solid-gray-800 dark:bg-solid-gray-900 dark:text-solid-gray-50 placeholder:text-solid-gray-420 aria-invalid:border-error-1"
             />
             <button
               type="button"
@@ -183,6 +183,7 @@ export function PerformedExerciseCard({
         <Button
           size="md"
           variant="outline"
+          className="dark:bg-transparent dark:text-key-300"
           aria-disabled={columnLimitReached}
           aria-describedby={columnLimitReached ? addColumnReasonId : undefined}
           onClick={() => !columnLimitReached && editColumns(appendColumn(columns))}

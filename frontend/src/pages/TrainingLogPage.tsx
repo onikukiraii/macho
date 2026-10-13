@@ -41,7 +41,7 @@ function TrainingLogDeleteSheet({ uid, open, onClose }: { uid: string; open: boo
     <BottomSheet open={open} onClose={onClose} title="トレーニング記録を削除">
       <p className="text-std-16N-170">この記録の種目とセットも削除されます。</p>
       <div className="grid grid-cols-2 gap-4">
-        <Button size="lg" variant="outline" onClick={onClose}>
+        <Button size="lg" variant="outline" className="dark:bg-transparent dark:text-key-300" onClick={onClose}>
           キャンセル
         </Button>
         <Button size="lg" variant="solid-fill" aria-disabled={deleting} onClick={() => void deleteTrainingLog()}>
@@ -59,7 +59,7 @@ function UnsavedSetsLeaveSheet({ destination, onClose }: { destination: string; 
     <BottomSheet open onClose={onClose} title="未保存のセットがあります">
       <p className="text-std-16N-170">移動すると、保存できなかったセットの入力は失われます。</p>
       <div className="grid grid-cols-2 gap-4">
-        <Button size="lg" variant="outline" onClick={onClose}>
+        <Button size="lg" variant="outline" className="dark:bg-transparent dark:text-key-300" onClick={onClose}>
           キャンセル
         </Button>
         <Button size="lg" variant="solid-fill" onClick={() => navigate(destination)}>
@@ -140,7 +140,7 @@ function TrainingLogView({ uid }: { uid: string }): ReactElement {
             <Skeleton className="h-5 w-32" />
           </div>
         )}
-        <Button size="sm" variant="outline" onClick={() => setDeleteSheetOpen(true)}>
+        <Button size="sm" variant="outline" className="dark:bg-transparent dark:text-key-300" onClick={() => setDeleteSheetOpen(true)}>
           記録を削除
         </Button>
       </header>
@@ -162,7 +162,7 @@ function TrainingLogView({ uid }: { uid: string }): ReactElement {
               onNavigate={confirmLeaveIfUnsaved}
             />
           ))}
-          <Button asChild size="lg" variant="outline">
+          <Button asChild size="lg" variant="outline" className="dark:bg-transparent dark:text-key-300">
             <Link
               to={`/training-logs/${uid}/exercise-picker`}
               onClick={(event) => confirmLeaveIfUnsaved(event, `/training-logs/${uid}/exercise-picker`)}

@@ -30,7 +30,7 @@ function TrainingMaxSection({ detail, onChanged }: TrainingMaxSectionProps): Rea
     <section className="flex flex-col gap-3">
       <div className="flex items-center justify-between gap-4">
         <h2 className="text-std-20B-150">トレーニングマックス</h2>
-        <Button size="sm" variant="outline" onClick={() => setChanging(true)}>
+        <Button size="sm" variant="outline" className="dark:bg-transparent dark:text-key-300" onClick={() => setChanging(true)}>
           変更
         </Button>
       </div>
@@ -104,7 +104,7 @@ function ExerciseDetailView({ uid }: { uid: string }): ReactElement {
             </>
           ) : null}
         </div>
-        <Button asChild size="sm" variant="outline">
+        <Button asChild size="sm" variant="outline" className="dark:bg-transparent dark:text-key-300">
           <Link to={`/exercises/${uid}/edit`}>編集</Link>
         </Button>
       </header>

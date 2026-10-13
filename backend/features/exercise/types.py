@@ -53,3 +53,28 @@ class TrainingMaxUpdate:
     before: float
     after: float
     reason: str
+
+
+@dataclass(frozen=True)
+class ExerciseFields:
+    name: str
+    parent_id: int | None
+    coefficient: float | None
+    e1rm_divisor: float | None
+    increment_kg: float
+    default_rest_seconds: int
+
+
+@dataclass(frozen=True)
+class ResolvedExercise:
+    exercise: Exercise
+    kind: ExerciseKind
+    parent: Exercise | None
+    e1rm_divisor: float
+    current_training_max: float | None
+
+
+@dataclass(frozen=True)
+class ExerciseDetail:
+    exercise: ResolvedExercise
+    training_max_history: tuple[TrainingMax, ...]

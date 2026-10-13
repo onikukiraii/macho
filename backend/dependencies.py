@@ -10,6 +10,8 @@ from common.config import settings
 from common.db.session import SessionLocal
 from common.gateway.job_queue_celery import CeleryJobQueue
 from common.gateway.protocol import JobQueue
+from features.exercise.protocol import ExerciseRepository
+from features.exercise.repository import DbExerciseRepository
 from worker.app import celery_app
 
 
@@ -30,3 +32,7 @@ def get_today() -> date:
 
 def get_job_queue() -> JobQueue:
     return CeleryJobQueue(celery_app)
+
+
+def get_exercise_repository(session: SessionDep) -> ExerciseRepository:
+    return DbExerciseRepository(session)

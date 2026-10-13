@@ -10,6 +10,7 @@ from starlette.responses import Response
 from starlette.types import Scope
 
 from common.config import settings
+from features.exercise.router import router as exercise_router
 
 logger = logging.getLogger(__name__)
 
@@ -46,6 +47,8 @@ def create_app(*, frontend_dist_dir: Path | None) -> FastAPI:
             status_code=500,
             content={"detail": "サーバーエラーが発生しました。"},
         )
+
+    app.include_router(exercise_router)
 
     # "/" の mount は全パスに一致するため、ルーターの登録はこの前に置く
     if frontend_dist_dir is not None:

@@ -1,4 +1,4 @@
-import { useCallback, useState, type ReactElement } from 'react'
+import { useState, type ReactElement } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { exercisesApi, trainingLogsApi } from '@/api/fetcher'
 import { EXERCISE_KIND_LABEL, type ExerciseDetail } from '@/api/constants'
@@ -59,8 +59,7 @@ function TrainingMaxSection({ detail, onChanged }: TrainingMaxSectionProps): Rea
 }
 
 function ExerciseHistorySection({ uid }: { uid: string }): ReactElement {
-  const loadHistory = useCallback(() => trainingLogsApi.byExercise(uid), [uid])
-  const [history] = useLoadable(loadHistory, HISTORY_FAILURE_MESSAGE)
+  const [history] = useLoadable(() => trainingLogsApi.byExercise(uid), [uid], HISTORY_FAILURE_MESSAGE)
 
   return (
     <section className="flex flex-col gap-3">
@@ -87,8 +86,7 @@ function ExerciseHistorySection({ uid }: { uid: string }): ReactElement {
 }
 
 function ExerciseDetailView({ uid }: { uid: string }): ReactElement {
-  const loadDetail = useCallback(() => exercisesApi.get(uid), [uid])
-  const [detail, setDetail] = useLoadable(loadDetail, DETAIL_FAILURE_MESSAGE)
+  const [detail, setDetail] = useLoadable(() => exercisesApi.get(uid), [uid], DETAIL_FAILURE_MESSAGE)
 
   return (
     <div className="flex flex-col gap-6 p-4">

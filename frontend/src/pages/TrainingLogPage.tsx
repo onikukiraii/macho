@@ -1,4 +1,4 @@
-import { useCallback, useState, type ReactElement } from 'react'
+import { useState, type MouseEvent, type ReactElement } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
 import type { components } from '@/api/schema'
@@ -10,11 +10,12 @@ import { InputField } from '@/components/InputField'
 import { PerformedExerciseCard } from '@/components/PerformedExerciseCard'
 import { RestTimerBadge } from '@/components/RestTimerBadge'
 import { RestTimerSheet } from '@/components/RestTimerSheet'
-import { TrainingMaxNotice, type TrainingMaxNoticeState } from '@/components/TrainingMaxNotice'
+import { TrainingMaxNotice } from '@/components/TrainingMaxNotice'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useLoadable } from '@/hooks/useLoadable'
 import { useRestTimer } from '@/hooks/useRestTimer'
 import { formatDateString } from '@/lib/dates'
+import { readTrainingMaxUpdates } from '@/lib/trainingLogLocationState'
 
 type TrainingLogDetail = components['schemas']['TrainingLogDetailResponse']
 
@@ -29,7 +30,7 @@ function TrainingLogDeleteSheet({ uid, open, onClose }: { uid: string; open: boo
     setDeleting(true)
     try {
       await trainingLogsApi.delete(uid)
-      navigate('/')
+      navigate('/', { replace: true })
     } catch {
       toast.error('トレーニング記録を削除できませんでした')
       setDeleting(false)
@@ -45,6 +46,24 @@ function TrainingLogDeleteSheet({ uid, open, onClose }: { uid: string; open: boo
         </Button>
         <Button size="lg" variant="solid-fill" aria-disabled={deleting} onClick={() => void deleteTrainingLog()}>
           削除する
+        </Button>
+      </div>
+    </BottomSheet>
+  )
+}
+
+function UnsavedSetsLeaveSheet({ destination, onClose }: { destination: string; onClose: () => void }): ReactElement {
+  const navigate = useNavigate()
+
+  return (
+    <BottomSheet open onClose={onClose} title="未保存のセットがあります">
+      <p className="text-std-16N-170">移動すると、保存できなかったセットの入力は失われます。</p>
+      <div className="grid grid-cols-2 gap-4">
+        <Button size="lg" variant="outline" onClick={onClose}>
+          キャンセル
+        </Button>
+        <Button size="lg" variant="solid-fill" onClick={() => navigate(destination)}>
+          移動する
         </Button>
       </div>
     </BottomSheet>
@@ -77,17 +96,32 @@ function TrainingLogMemoField({ trainingLog }: { trainingLog: TrainingLogDetail 
 
 function TrainingLogView({ uid }: { uid: string }): ReactElement {
   const location = useLocation()
-  const loadTrainingLog = useCallback(() => trainingLogsApi.get(uid), [uid])
-  const [trainingLog] = useLoadable(loadTrainingLog, LOAD_FAILURE_MESSAGE)
+  const [trainingLog] = useLoadable(() => trainingLogsApi.get(uid), [uid], LOAD_FAILURE_MESSAGE)
   const [deleteSheetOpen, setDeleteSheetOpen] = useState(false)
   const restTimer = useRestTimer()
   const [restTimerSheetOpen, setRestTimerSheetOpen] = useState(false)
-  const noticeState: TrainingMaxNoticeState | null = location.state
-  const trainingMaxUpdates = noticeState?.trainingMaxUpdates ?? []
+  const [unsavedExerciseUids, setUnsavedExerciseUids] = useState<ReadonlySet<string>>(new Set())
+  const [leaveDestination, setLeaveDestination] = useState<string | null>(null)
+  const trainingMaxUpdates = readTrainingMaxUpdates(location.state)
+
+  function updateUnsavedExercise(performedUid: string, unsaved: boolean): void {
+    setUnsavedExerciseUids((current) => {
+      const next = new Set(current)
+      if (unsaved) next.add(performedUid)
+      else next.delete(performedUid)
+      return next
+    })
+  }
+
+  function confirmLeaveIfUnsaved(event: MouseEvent<HTMLAnchorElement>, to: string): void {
+    if (unsavedExerciseUids.size === 0) return
+    event.preventDefault()
+    setLeaveDestination(to)
+  }
 
   return (
     <div className="flex flex-col gap-4 p-4 pb-28">
-      <Link to="/" className="text-dns-14N-130 text-primary underline">
+      <Link to="/" onClick={(event) => confirmLeaveIfUnsaved(event, '/')} className="text-dns-14N-130 text-primary underline">
         ホームへ戻る
       </Link>
       <header className="flex items-start justify-between gap-4">
@@ -124,19 +158,45 @@ function TrainingLogView({ uid }: { uid: string }): ReactElement {
                 void restTimer.startRestTimer(seconds, nextSetLabel)
                 setRestTimerSheetOpen(true)
               }}
+              onUnsavedChange={(unsaved) => updateUnsavedExercise(performedExercise.uid, unsaved)}
+              onNavigate={confirmLeaveIfUnsaved}
             />
           ))}
           <Button asChild size="lg" variant="outline">
-            <Link to={`/training-logs/${uid}/exercise-picker`}>種目を追加</Link>
+            <Link
+              to={`/training-logs/${uid}/exercise-picker`}
+              onClick={(event) => confirmLeaveIfUnsaved(event, `/training-logs/${uid}/exercise-picker`)}
+            >
+              種目を追加
+            </Link>
           </Button>
           <TrainingLogMemoField trainingLog={trainingLog.value} />
         </>
       )}
       <TrainingLogDeleteSheet uid={uid} open={deleteSheetOpen} onClose={() => setDeleteSheetOpen(false)} />
-      {restTimer.running !== null && (
-        <RestTimerBadge remainingSeconds={restTimer.running.remainingSeconds} onOpen={() => setRestTimerSheetOpen(true)} />
+      {leaveDestination !== null && (
+        <UnsavedSetsLeaveSheet destination={leaveDestination} onClose={() => setLeaveDestination(null)} />
       )}
-      <RestTimerSheet open={restTimerSheetOpen} onClose={() => setRestTimerSheetOpen(false)} restTimer={restTimer} />
+      {restTimer.running !== null && (
+        <>
+          <div className="fixed inset-x-0 bottom-0 pb-[env(safe-area-inset-bottom)]">
+            <div className="p-4">
+              <RestTimerBadge
+                remainingSeconds={restTimer.running.remainingSeconds}
+                onOpen={() => setRestTimerSheetOpen(true)}
+              />
+            </div>
+          </div>
+          <RestTimerSheet
+            open={restTimerSheetOpen}
+            onClose={() => setRestTimerSheetOpen(false)}
+            running={restTimer.running}
+            notificationStatus={restTimer.notificationStatus}
+            onExtend={restTimer.extendRestTimer}
+            onStop={restTimer.stopRestTimer}
+          />
+        </>
+      )}
     </div>
   )
 }

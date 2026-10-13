@@ -1,4 +1,4 @@
-import { useCallback, useState, type ReactElement } from 'react'
+import { useState, type ReactElement } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { addMonths, format, parseISO } from 'date-fns'
 import { Plus } from 'lucide-react'
@@ -9,8 +9,11 @@ import { DaySelectSheet } from '@/components/DaySelectSheet'
 import { MonthCalendar } from '@/components/MonthCalendar'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useLoadable } from '@/hooks/useLoadable'
+import { useToday } from '@/hooks/useToday'
 import { buildMonthGrid } from '@/lib/calendar'
-import { formatDateString, toDateInputValue } from '@/lib/dates'
+import { formatDateString } from '@/lib/dates'
+import { formatSet } from '@/lib/exercises'
+import { formatDayLabel } from '@/lib/program'
 
 type TrainingLogSummary = components['schemas']['TrainingLogSummaryResponse']
 
@@ -28,8 +31,7 @@ function TrainingLogSummaryLink({ summary }: { summary: TrainingLogSummary }): R
       <ul className="text-dns-14N-130">
         {summary.top_sets.map((topSet) => (
           <li key={topSet.exercise_name}>
-            {topSet.exercise_name} {topSet.weight} kg × {topSet.reps}
-            {topSet.rir !== null && ` RIR ${topSet.rir}`}
+            {topSet.exercise_name} {formatSet(topSet)}
           </li>
         ))}
       </ul>
@@ -38,30 +40,32 @@ function TrainingLogSummaryLink({ summary }: { summary: TrainingLogSummary }): R
 }
 
 export function HomePage(): ReactElement {
-  const [today] = useState(() => toDateInputValue(new Date()))
-  const [{ year, month }, setVisibleMonth] = useState(() => ({
-    year: parseISO(today).getFullYear(),
-    month: parseISO(today).getMonth() + 1,
-  }))
-  const [selectedDate, setSelectedDate] = useState(today)
+  const today = useToday()
+  // null は今日を指す。日をまたいだときに、選んでいる日と表示している月も新しい今日へ移すため
+  const [pickedDate, setPickedDate] = useState<string | null>(null)
+  const [shownMonth, setShownMonth] = useState<{ year: number; month: number } | null>(null)
+  const selectedDate = pickedDate ?? today
+  const { year, month } = shownMonth ?? { year: parseISO(today).getFullYear(), month: parseISO(today).getMonth() + 1 }
   const [searchParams, setSearchParams] = useSearchParams()
   const daySelectOpen = searchParams.get('record') === '1'
 
   const grid = buildMonthGrid(year, month)
-  const loadTrainingLogs = useCallback(() => {
-    const visibleDates = buildMonthGrid(year, month)
-    return trainingLogsApi.list({ from_date: visibleDates[0], to_date: visibleDates[visibleDates.length - 1] })
-  }, [year, month])
-  const [trainingLogs] = useLoadable(loadTrainingLogs, LOGS_FAILURE_MESSAGE)
-  const [latest] = useLoadable(trainingLogsApi.latest, LATEST_FAILURE_MESSAGE)
-  const [dayOptions] = useLoadable(trainingLogsApi.dayOptions, DAY_OPTIONS_FAILURE_MESSAGE)
+  const fromDate = grid[0]
+  const toDate = grid[grid.length - 1]
+  const [trainingLogs] = useLoadable(
+    () => trainingLogsApi.list({ from_date: fromDate, to_date: toDate }),
+    [fromDate, toDate],
+    LOGS_FAILURE_MESSAGE,
+  )
+  const [latest] = useLoadable(() => trainingLogsApi.latest(), [], LATEST_FAILURE_MESSAGE)
+  const [dayOptions] = useLoadable(() => trainingLogsApi.dayOptions(), [], DAY_OPTIONS_FAILURE_MESSAGE)
 
   const recordedDates = new Set(trainingLogs.status === 'loaded' ? trainingLogs.value.map((summary) => summary.date) : [])
   const nextDay = dayOptions.status === 'loaded' ? dayOptions.value.options.find((option) => option.is_next) : undefined
 
   function showMonth(monthOffset: number): void {
     const shown = addMonths(new Date(year, month - 1, 1), monthOffset)
-    setVisibleMonth({ year: shown.getFullYear(), month: shown.getMonth() + 1 })
+    setShownMonth({ year: shown.getFullYear(), month: shown.getMonth() + 1 })
   }
 
   function openDaySelect(): void {
@@ -74,10 +78,11 @@ export function HomePage(): ReactElement {
       <MonthCalendar
         year={year}
         month={month}
+        dates={grid}
         today={today}
         selectedDate={selectedDate}
         recordedDates={recordedDates}
-        onSelectDate={setSelectedDate}
+        onSelectDate={(date) => setPickedDate(date === today ? null : date)}
         onShowPreviousMonth={() => showMonth(-1)}
         onShowNextMonth={() => showMonth(1)}
       />
@@ -89,7 +94,7 @@ export function HomePage(): ReactElement {
             {dayOptions.status === 'failed' && <p className="text-std-16B-170">-</p>}
             {dayOptions.status === 'loaded' && (
               <p className="text-std-16B-170">
-                {nextDay === undefined ? 'ありません' : `第${nextDay.week}週 Day${nextDay.day}`}
+                {nextDay === undefined ? 'ありません' : formatDayLabel(nextDay)}
               </p>
             )}
           </div>

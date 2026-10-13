@@ -5,9 +5,6 @@ type TrainingMaxNoticeProps = {
   trainingMaxUpdates: components['schemas']['TrainingMaxUpdateResponse'][]
 }
 
-/** 記録の作成から記録の画面へ遷移するときに、location.state で渡すお知らせの中身 */
-export type TrainingMaxNoticeState = TrainingMaxNoticeProps
-
 export function TrainingMaxNotice({ trainingMaxUpdates }: TrainingMaxNoticeProps): ReactElement {
   return (
     <div role="status" className="flex flex-col gap-1 rounded-8 bg-success-2 p-3 text-white">

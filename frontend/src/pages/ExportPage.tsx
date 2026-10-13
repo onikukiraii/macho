@@ -1,4 +1,4 @@
-import { useCallback, useState, type ReactElement } from 'react'
+import { useState, type ReactElement } from 'react'
 import { toast } from 'sonner'
 import { trainingLogsApi } from '@/api/fetcher'
 import { Button } from '@/components/dads/Button'
@@ -12,8 +12,11 @@ import { defaultExportFromDate, toDateInputValue } from '@/lib/dates'
 const COUNT_FAILURE_MESSAGE = 'セット件数を取得できませんでした'
 
 function SetCount({ fromDate, toDate }: { fromDate: string; toDate: string }): ReactElement {
-  const loadCount = useCallback(() => trainingLogsApi.exportCount({ from_date: fromDate, to_date: toDate }), [fromDate, toDate])
-  const [count] = useLoadable(loadCount, COUNT_FAILURE_MESSAGE)
+  const [count] = useLoadable(
+    () => trainingLogsApi.exportCount({ from_date: fromDate, to_date: toDate }),
+    [fromDate, toDate],
+    COUNT_FAILURE_MESSAGE,
+  )
 
   if (count.status === 'loading') return <Skeleton className="h-6 w-20" />
   if (count.status === 'failed') return <span className="text-std-16B-170">取得できませんでした</span>

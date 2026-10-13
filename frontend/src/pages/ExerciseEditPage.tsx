@@ -51,7 +51,8 @@ function ExerciseForm({ exercises, editing, initialName, returnTo }: ExerciseFor
         returnTo === null
           ? null
           : resolveReturnTo(returnTo, window.location.origin, editing === null ? { createdExerciseUid: saved.uid } : {})
-      navigate(destination ?? `/exercises/${saved.uid}`)
+      if (destination === null) navigate(`/exercises/${saved.uid}`)
+      else navigate(destination, { replace: true })
     } catch (error) {
       if (!(error instanceof Error)) throw error
       toast.error(`種目を保存できませんでした。${error.message}`)
@@ -135,7 +136,7 @@ function ExerciseForm({ exercises, editing, initialName, returnTo }: ExerciseFor
 export function ExerciseEditPage(): ReactElement {
   const { uid } = useParams<{ uid: string }>()
   const [searchParams] = useSearchParams()
-  const [exercises] = useLoadable(exercisesApi.list, LOAD_FAILURE_MESSAGE)
+  const [exercises] = useLoadable(() => exercisesApi.list(), [], LOAD_FAILURE_MESSAGE)
 
   const editing = exercises.status === 'loaded' ? (exercises.value.find((exercise) => exercise.uid === uid) ?? null) : null
 

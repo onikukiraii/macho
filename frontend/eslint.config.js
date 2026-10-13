@@ -20,6 +20,7 @@ export default defineConfig([
       globals: globals.browser,
     },
     rules: {
+      'react-hooks/exhaustive-deps': ['error', { additionalHooks: 'useLoadable' }],
       'no-restricted-imports': ['error', {
         patterns: [{
           regex: '^@/components/ui/(alert|badge|button|checkbox|dialog|input|label|select|separator|sheet|table)$',

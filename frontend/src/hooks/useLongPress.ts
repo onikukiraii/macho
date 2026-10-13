@@ -1,4 +1,4 @@
-import { useRef, type MouseEvent } from 'react'
+import { useEffect, useRef, type MouseEvent } from 'react'
 
 const LONG_PRESS_MILLISECONDS = 500
 
@@ -10,8 +10,21 @@ type LongPressHandlers = {
   onContextMenu: (event: MouseEvent) => void
 }
 
+/** 長押しが成立した時点の `onLongPress` を呼ぶ。押している間に変わった値を使うため */
 export function useLongPress(onLongPress: () => void): LongPressHandlers {
   const timeoutId = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const latestOnLongPress = useRef(onLongPress)
+
+  useEffect(() => {
+    latestOnLongPress.current = onLongPress
+  })
+
+  useEffect(() => {
+    const pendingTimeoutId = timeoutId
+    return () => {
+      if (pendingTimeoutId.current !== null) clearTimeout(pendingTimeoutId.current)
+    }
+  }, [])
 
   function cancelLongPress(): void {
     if (timeoutId.current !== null) clearTimeout(timeoutId.current)
@@ -23,7 +36,7 @@ export function useLongPress(onLongPress: () => void): LongPressHandlers {
       cancelLongPress()
       timeoutId.current = setTimeout(() => {
         timeoutId.current = null
-        onLongPress()
+        latestOnLongPress.current()
       }, LONG_PRESS_MILLISECONDS)
     },
     onPointerUp: cancelLongPress,

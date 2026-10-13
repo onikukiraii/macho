@@ -15,7 +15,7 @@ function ExercisePicker({ trainingLogUid }: { trainingLogUid: string }): ReactEl
   const [searchParams] = useSearchParams()
   const replacingUid = searchParams.get('replace')
   const createdExerciseUid = searchParams.get('createdExerciseUid')
-  const [exercises] = useLoadable(exercisesApi.list, LOAD_FAILURE_MESSAGE)
+  const [exercises] = useLoadable(() => exercisesApi.list(), [], LOAD_FAILURE_MESSAGE)
   const [query, setQuery] = useState('')
   const pickedCreatedExerciseUid = useRef<string | null>(null)
   const picking = useRef(false)

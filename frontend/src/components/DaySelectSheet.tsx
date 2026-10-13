@@ -12,7 +12,8 @@ import { Radio } from '@/components/dads/Radio'
 import { InputField } from '@/components/InputField'
 import { Skeleton } from '@/components/ui/skeleton'
 import type { Loadable } from '@/hooks/useLoadable'
-import type { TrainingMaxNoticeState } from '@/components/TrainingMaxNotice'
+import { formatDayLabel } from '@/lib/program'
+import type { TrainingLogLocationState } from '@/lib/trainingLogLocationState'
 
 type DayOption = components['schemas']['DayOptionResponse']
 
@@ -42,8 +43,8 @@ function DaySelectForm({ initialDate, today, options }: DaySelectFormProps): Rea
     setCreating(true)
     try {
       const created = await trainingLogsApi.create({ date, program_day_uid: programDayUid })
-      const state: TrainingMaxNoticeState = { trainingMaxUpdates: created.training_max_updates }
-      navigate(`/training-logs/${created.uid}`, { state })
+      const state: TrainingLogLocationState = { trainingMaxUpdates: created.training_max_updates }
+      navigate(`/training-logs/${created.uid}`, { state, replace: true })
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'トレーニング記録を作成できませんでした')
       setCreating(false)
@@ -64,7 +65,7 @@ function DaySelectForm({ initialDate, today, options }: DaySelectFormProps): Rea
             checked={programDayUid === option.program_day_uid}
             onChange={() => setProgramDayUid(option.program_day_uid)}
           >
-            第{option.week}週 Day{option.day} {WEEKDAY_LABEL[option.weekday]}曜日
+            {formatDayLabel(option)} {WEEKDAY_LABEL[option.weekday]}曜日
             {option.is_next && ' 次'}
             {option.last_recorded_on !== null && ` 記録済み ${format(parseISO(option.last_recorded_on), 'M/d')}`}
           </Radio>

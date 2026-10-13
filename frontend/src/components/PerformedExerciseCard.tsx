@@ -1,21 +1,22 @@
-import { useId, useRef, useState, type ReactElement } from 'react'
+import { Fragment, useId, useRef, useState, type MouseEvent, type ReactElement } from 'react'
 import { Link } from 'react-router-dom'
 import { format, parseISO } from 'date-fns'
-import { toast } from 'sonner'
 import type { components } from '@/api/schema'
-import { trainingLogsApi } from '@/api/fetcher'
 import { Button } from '@/components/dads/Button'
-import { Textarea } from '@/components/dads/Textarea'
-import { InputField } from '@/components/InputField'
+import { ErrorText } from '@/components/dads/ErrorText'
+import { PerformedExerciseMemoField } from '@/components/PerformedExerciseMemoField'
 import { RirSheet } from '@/components/RirSheet'
 import { useLongPress } from '@/hooks/useLongPress'
-import { formatSet } from '@/lib/exercises'
+import { useSetsAutosave } from '@/hooks/useSetsAutosave'
+import { formatPlanned, formatSet } from '@/lib/exercises'
+import { formatRestTime } from '@/lib/restTimer'
 import {
+  MAX_COLUMN_COUNT,
   appendColumn,
   copyPreviousColumn,
   fillWeightForward,
-  initializeColumns,
-  toSetParams,
+  isValidReps,
+  isValidWeight,
   type SetColumn,
 } from '@/lib/setColumns'
 
@@ -25,6 +26,9 @@ type PerformedExerciseCardProps = {
   trainingLogUid: string
   performedExercise: PerformedExercise
   onStartRest: (seconds: number, nextSetLabel: string) => void
+  onUnsavedChange: (unsaved: boolean) => void
+  /** 記録の画面から離れるリンクを押したとき。未保存の確認のため遷移を止めることがある */
+  onNavigate: (event: MouseEvent<HTMLAnchorElement>, to: string) => void
 }
 
 function SetNumberButton({ setNumber, onLongPress }: { setNumber: number; onLongPress: () => void }): ReactElement {
@@ -41,15 +45,7 @@ function PlannedSummary({ performedExercise }: { performedExercise: PerformedExe
   if (planned === null && previous === null) return null
   return (
     <div className="flex flex-col gap-1 text-dns-14N-130 text-muted-foreground">
-      {planned !== null && (
-        <p>
-          予定 {planned.sets}×{planned.reps}
-          {planned.reps_max !== null && `〜${planned.reps_max}`}
-          {planned.target_rpe !== null && ` RPE${planned.target_rpe}`}
-          {planned.target_percent !== null && ` ${planned.target_percent}%`}
-          {targetWeight !== null && ` / 目標 ${targetWeight} kg`}
-        </p>
-      )}
+      {planned !== null && <p>予定 {formatPlanned(planned, targetWeight)}</p>}
       {previous !== null && (
         <p>
           前回 {format(parseISO(previous.date), 'M/d')} {formatSet(previous.top_set)}
@@ -63,54 +59,31 @@ export function PerformedExerciseCard({
   trainingLogUid,
   performedExercise,
   onStartRest,
+  onUnsavedChange,
+  onNavigate,
 }: PerformedExerciseCardProps): ReactElement {
   const headingId = useId()
-  const [columns, setColumns] = useState(() => initializeColumns(performedExercise))
-  const [saveFailed, setSaveFailed] = useState(false)
+  const columnErrorId = useId()
+  const addColumnReasonId = useId()
+  const { columns, editColumns, commitColumns, saveFailed, retrySave } = useSetsAutosave(performedExercise, onUnsavedChange)
   const [rirColumnIndex, setRirColumnIndex] = useState<number | null>(null)
-  const [memo, setMemo] = useState(performedExercise.memo)
-  const savedSetsKey = useRef(JSON.stringify(toSetParams(initializeColumns(performedExercise))))
-  const latestSaveRequest = useRef(0)
+  // 重量を変えずに欄を離れたときは後ろの列へ入れない。消した列が戻らないようにするため
+  const editedWeightIndex = useRef<number | null>(null)
 
-  // 全セットの置き換えなので、失敗したあとの送り直しは冪等になる
-  async function saveSets(nextColumns: SetColumn[]): Promise<void> {
-    const sets = toSetParams(nextColumns)
-    const setsKey = JSON.stringify(sets)
-    if (!saveFailed && setsKey === savedSetsKey.current) return
-    latestSaveRequest.current += 1
-    const request = latestSaveRequest.current
-    try {
-      await trainingLogsApi.replaceSets(performedExercise.uid, { sets })
-      if (request !== latestSaveRequest.current) return
-      savedSetsKey.current = setsKey
-      setSaveFailed(false)
-    } catch {
-      if (request !== latestSaveRequest.current) return
-      setSaveFailed(true)
-      toast.error('セットを保存できませんでした')
-    }
-  }
-
-  function commitColumns(nextColumns: SetColumn[]): void {
-    setColumns(nextColumns)
-    void saveSets(nextColumns)
-  }
-
-  function editColumn(index: number, patch: Partial<SetColumn>): SetColumn[] {
+  function updateColumn(index: number, patch: Partial<SetColumn>): SetColumn[] {
     return columns.map((column, position) => (position === index ? { ...column, ...patch } : column))
   }
 
-  async function saveMemo(): Promise<void> {
-    try {
-      await trainingLogsApi.updateExercise(performedExercise.uid, { exercise_uid: performedExercise.exercise_uid, memo })
-    } catch {
-      toast.error('メモを保存できませんでした')
-    }
+  function commitWeight(index: number): void {
+    commitColumns(editedWeightIndex.current === index ? fillWeightForward(columns, index) : columns)
+    editedWeightIndex.current = null
   }
 
   const nextSetIndex = columns.findIndex((column) => column.weight === '' || column.reps === '')
   const weightPlaceholder = performedExercise.target_weight === null ? undefined : String(performedExercise.target_weight)
   const repsPlaceholder = performedExercise.planned === null ? undefined : String(performedExercise.planned.reps)
+  const columnLimitReached = columns.length >= MAX_COLUMN_COUNT
+  const replaceExerciseHref = `/training-logs/${trainingLogUid}/exercise-picker?replace=${performedExercise.uid}`
 
   return (
     <section aria-labelledby={headingId} className="flex flex-col gap-3 rounded-8 bg-card p-3">
@@ -122,20 +95,22 @@ export function PerformedExerciseCard({
           {saveFailed && (
             <button
               type="button"
-              onClick={() => void saveSets(columns)}
+              onClick={retrySave}
               className="rounded-4 bg-error-1 px-2 py-0.5 text-dns-14B-130 text-white"
             >
               未保存
             </button>
           )}
           <Link
-            to={`/training-logs/${trainingLogUid}/exercise-picker?replace=${performedExercise.uid}`}
+            to={replaceExerciseHref}
+            onClick={(event) => onNavigate(event, replaceExerciseHref)}
             className="text-dns-14N-130 text-primary underline"
           >
             差し替え
           </Link>
         </div>
       </div>
+      {saveFailed && <ErrorText>セットを保存できませんでした</ErrorText>}
       <PlannedSummary performedExercise={performedExercise} />
       <p className="text-dns-14N-130 text-muted-foreground">
         セット番号を長押しすると、前のセットの重量・回数・RIR をコピーします
@@ -155,11 +130,16 @@ export function PerformedExerciseCard({
               min={0}
               max={500}
               aria-label={`セット${index + 1}の重量`}
+              aria-invalid={!isValidWeight(column.weight)}
+              aria-describedby={isValidWeight(column.weight) ? undefined : `${columnErrorId}-weight-${index}`}
               placeholder={weightPlaceholder}
               value={column.weight}
-              onChange={(event) => setColumns(editColumn(index, { weight: event.target.value }))}
-              onBlur={() => commitColumns(fillWeightForward(columns, index))}
-              className="h-12 rounded-8 border border-solid-gray-600 bg-white text-center text-oln-16N-100 text-solid-gray-800 placeholder:text-solid-gray-420"
+              onChange={(event) => {
+                editedWeightIndex.current = index
+                editColumns(updateColumn(index, { weight: event.target.value }))
+              }}
+              onBlur={() => commitWeight(index)}
+              className="h-12 rounded-8 border border-solid-gray-600 bg-white text-center text-oln-16N-100 text-solid-gray-800 placeholder:text-solid-gray-420 aria-invalid:border-error-1"
             />
             <input
               type="number"
@@ -168,11 +148,13 @@ export function PerformedExerciseCard({
               min={0}
               max={100}
               aria-label={`セット${index + 1}の回数`}
+              aria-invalid={!isValidReps(column.reps)}
+              aria-describedby={isValidReps(column.reps) ? undefined : `${columnErrorId}-reps-${index}`}
               placeholder={repsPlaceholder}
               value={column.reps}
-              onChange={(event) => setColumns(editColumn(index, { reps: event.target.value }))}
+              onChange={(event) => editColumns(updateColumn(index, { reps: event.target.value }))}
               onBlur={() => commitColumns(columns)}
-              className="h-12 rounded-8 border border-solid-gray-600 bg-white text-center text-oln-16N-100 text-solid-gray-800 placeholder:text-solid-gray-420"
+              className="h-12 rounded-8 border border-solid-gray-600 bg-white text-center text-oln-16N-100 text-solid-gray-800 placeholder:text-solid-gray-420 aria-invalid:border-error-1"
             />
             <button
               type="button"
@@ -185,8 +167,26 @@ export function PerformedExerciseCard({
           </div>
         ))}
       </div>
+      {columns.map((column, index) => (
+        <Fragment key={index}>
+          {!isValidWeight(column.weight) && (
+            <ErrorText id={`${columnErrorId}-weight-${index}`}>セット{index + 1}の重量は 0〜500 kg で入力してください</ErrorText>
+          )}
+          {!isValidReps(column.reps) && (
+            <ErrorText id={`${columnErrorId}-reps-${index}`}>
+              セット{index + 1}の回数は 0〜100 の整数で入力してください
+            </ErrorText>
+          )}
+        </Fragment>
+      ))}
       <div className="flex gap-2">
-        <Button size="md" variant="outline" onClick={() => setColumns(appendColumn(columns))}>
+        <Button
+          size="md"
+          variant="outline"
+          aria-disabled={columnLimitReached}
+          aria-describedby={columnLimitReached ? addColumnReasonId : undefined}
+          onClick={() => !columnLimitReached && editColumns(appendColumn(columns))}
+        >
           セットを追加
         </Button>
         <Button
@@ -201,17 +201,19 @@ export function PerformedExerciseCard({
             )
           }
         >
-          レスト {Math.floor(performedExercise.default_rest_seconds / 60)}:
-          {String(performedExercise.default_rest_seconds % 60).padStart(2, '0')}
+          レスト {formatRestTime(performedExercise.default_rest_seconds)}
         </Button>
       </div>
-      <InputField label="メモ">
-        <Textarea rows={2} maxLength={1000} value={memo} onChange={(event) => setMemo(event.target.value)} onBlur={() => void saveMemo()} />
-      </InputField>
+      {columnLimitReached && (
+        <p id={addColumnReasonId} className="text-dns-14N-130 text-muted-foreground">
+          セットは{MAX_COLUMN_COUNT}まで追加できます
+        </p>
+      )}
+      <PerformedExerciseMemoField performedExercise={performedExercise} />
       <RirSheet
         open={rirColumnIndex !== null}
         onClose={() => setRirColumnIndex(null)}
-        onDecide={(rir) => rirColumnIndex !== null && commitColumns(editColumn(rirColumnIndex, { rir }))}
+        onDecide={(rir) => rirColumnIndex !== null && commitColumns(updateColumn(rirColumnIndex, { rir }))}
       />
     </section>
   )

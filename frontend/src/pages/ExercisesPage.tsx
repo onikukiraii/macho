@@ -28,7 +28,7 @@ function ExerciseRow({ exercise }: { exercise: Exercise }): ReactElement {
 }
 
 export function ExercisesPage(): ReactElement {
-  const [exercises] = useLoadable(exercisesApi.list, LOAD_FAILURE_MESSAGE)
+  const [exercises] = useLoadable(() => exercisesApi.list(), [], LOAD_FAILURE_MESSAGE)
 
   return (
     <div className="flex flex-col gap-4 py-4">

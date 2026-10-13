@@ -1,13 +1,15 @@
 import type { ReactElement } from 'react'
 import { format, parseISO } from 'date-fns'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
-import { buildMonthGrid, isAfterToday } from '@/lib/calendar'
+import { isAfterToday } from '@/lib/calendar'
 
 const WEEKDAY_HEADERS = ['月', '火', '水', '木', '金', '土', '日']
 
 type MonthCalendarProps = {
   year: number
   month: number
+  /** `buildMonthGrid` が返す、前後の月の日を含めたマス目の日付 */
+  dates: string[]
   today: string
   selectedDate: string
   recordedDates: ReadonlySet<string>
@@ -19,6 +21,7 @@ type MonthCalendarProps = {
 export function MonthCalendar({
   year,
   month,
+  dates,
   today,
   selectedDate,
   recordedDates,
@@ -47,7 +50,7 @@ export function MonthCalendar({
             {weekday}
           </span>
         ))}
-        {buildMonthGrid(year, month).map((date) => {
+        {dates.map((date) => {
           const recorded = recordedDates.has(date)
           return (
             <button

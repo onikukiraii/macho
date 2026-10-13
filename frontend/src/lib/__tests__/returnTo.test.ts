@@ -4,7 +4,7 @@ import { resolveReturnTo } from '../returnTo'
 const ORIGIN = 'https://macho.example'
 
 describe('resolveReturnTo', () => {
-  it.each(['//evil.example', '/\t/evil.example', '/\\evil.example', 'https://evil.example/path'])(
+  it.each(['//evil.example', '/\t/evil.example', '/\\evil.example', 'https://evil.example/path', '/.//evil.example'])(
     '他の origin へ遷移する値 %j は採用しない',
     (value) => {
       expect(resolveReturnTo(value, ORIGIN)).toBeNull()

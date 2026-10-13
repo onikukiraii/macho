@@ -58,7 +58,7 @@ function WeekTitle({ week }: { week: ProgramWeekProgress }): ReactElement {
 }
 
 export function ProgramPage(): ReactElement {
-  const [progress] = useLoadable(trainingLogsApi.programProgress, LOAD_FAILURE_MESSAGE)
+  const [progress] = useLoadable(() => trainingLogsApi.programProgress(), [], LOAD_FAILURE_MESSAGE)
 
   if (progress.status === 'loading') {
     return (

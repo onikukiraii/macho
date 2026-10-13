@@ -27,12 +27,21 @@ function RestTimerHarness() {
       >
         レスト
       </button>
-      <RestTimerSheet open={restTimerSheetOpen} onClose={() => setRestTimerSheetOpen(false)} restTimer={restTimer} />
       {restTimer.running !== null && (
-        <RestTimerBadge
-          remainingSeconds={restTimer.running.remainingSeconds}
-          onOpen={() => setRestTimerSheetOpen(true)}
-        />
+        <>
+          <RestTimerSheet
+            open={restTimerSheetOpen}
+            onClose={() => setRestTimerSheetOpen(false)}
+            running={restTimer.running}
+            notificationStatus={restTimer.notificationStatus}
+            onExtend={restTimer.extendRestTimer}
+            onStop={restTimer.stopRestTimer}
+          />
+          <RestTimerBadge
+            remainingSeconds={restTimer.running.remainingSeconds}
+            onOpen={() => setRestTimerSheetOpen(true)}
+          />
+        </>
       )}
       <Toaster />
     </>

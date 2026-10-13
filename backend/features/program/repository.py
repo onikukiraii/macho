@@ -2,9 +2,11 @@ from collections.abc import Sequence
 from datetime import date
 
 from sqlalchemy import Select, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
 from common.db.entities import PlannedExerciseRow, ProgramDayRow, ProgramRow, ProgramWeekRow
+from common.errors import Conflict
 from features.program.types import (
     NewProgram,
     PlannedExercise,
@@ -26,7 +28,8 @@ class DbProgramRepository:
         return self._get_first(select(ProgramRow).where(ProgramRow.start_date <= on))
 
     def create(self, *, uid: str, day_uids: Sequence[str], program: NewProgram) -> Program:
-        remaining_uids = iter(day_uids)
+        days = [day for week in program.weeks for day in week.days]
+        uid_by_day = {id(day): day_uid for day, day_uid in zip(days, day_uids, strict=True)}
         row = ProgramRow(
             uid=uid,
             name=program.name,
@@ -39,7 +42,7 @@ class DbProgramRepository:
                     label=week.label,
                     days=[
                         ProgramDayRow(
-                            uid=next(remaining_uids),
+                            uid=uid_by_day[id(day)],
                             day=day.day,
                             weekday=day.weekday,
                             planned_exercises=[
@@ -55,14 +58,18 @@ class DbProgramRepository:
                                 for planned in day.planned_exercises
                             ],
                         )
-                        for day in sorted(week.days, key=lambda day: day.day)
+                        for day in week.days
                     ],
                 )
-                for week in sorted(program.weeks, key=lambda week: week.week)
+                for week in program.weeks
             ],
         )
         self._session.add(row)
-        self._session.commit()
+        try:
+            self._session.commit()
+        except IntegrityError as e:
+            self._session.rollback()
+            raise Conflict("週または Day の番号が重複しています") from e
         self._session.refresh(row)
         return _to_domain(row)
 

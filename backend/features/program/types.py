@@ -42,6 +42,12 @@ class ProgramWeek:
 
 
 @dataclass(frozen=True)
+class ProgramDayInWeek:
+    week: ProgramWeek
+    day: ProgramDay
+
+
+@dataclass(frozen=True)
 class Program:
     id: int
     uid: str

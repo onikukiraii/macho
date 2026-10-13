@@ -23,6 +23,20 @@ class TestCalculateGuideDate:
     def test_開始日の週の月曜を起点に目安日を出す(self, week: int, weekday: Weekday, expected: date) -> None:
         assert calculate_guide_date(date(2026, 9, 28), week=week, weekday=weekday) == expected
 
+    @pytest.mark.parametrize(
+        ("start_date", "week", "weekday", "expected"),
+        [
+            (date(2026, 9, 30), 1, Weekday.mon, date(2026, 9, 28)),
+            (date(2026, 9, 30), 2, Weekday.fri, date(2026, 10, 9)),
+            (date(2026, 10, 4), 1, Weekday.mon, date(2026, 9, 28)),
+            (date(2026, 10, 4), 2, Weekday.sun, date(2026, 10, 11)),
+        ],
+    )
+    def test_開始日が週の途中でもその週の月曜を起点に目安日を出す(
+        self, start_date: date, week: int, weekday: Weekday, expected: date
+    ) -> None:
+        assert calculate_guide_date(start_date, week=week, weekday=weekday) == expected
+
 
 class TestListDaysInOrder:
     def test_週と_Day_の昇順に並べる(self) -> None:
@@ -43,6 +57,6 @@ class TestListDaysInOrder:
             ),
         )
 
-        ordered = [(week.week, day.day) for week, day in list_days_in_order(program)]
+        ordered = [(entry.week.week, entry.day.day) for entry in list_days_in_order(program)]
 
         assert ordered == [(1, 1), (1, 2), (2, 1)]

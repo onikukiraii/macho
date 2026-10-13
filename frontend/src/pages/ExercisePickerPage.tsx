@@ -42,7 +42,7 @@ function ExercisePicker({ trainingLogUid }: { trainingLogUid: string }): ReactEl
     [navigate, replacingUid, trainingLogUid],
   )
 
-  // 種目の編集画面で作成して戻ってきたら、その種目を記録に追加する。StrictMode の再実行で2回追加しないよう uid で止める
+  // 種目の編集画面で作成して戻ってきたら、その種目を記録に追加する。StrictMode で effect が再実行されても2回追加しないよう、追加した uid を ref に持つ
   useEffect(() => {
     if (createdExerciseUid === null || pickedCreatedExerciseUid.current === createdExerciseUid) return
     pickedCreatedExerciseUid.current = createdExerciseUid

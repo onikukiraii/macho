@@ -67,7 +67,7 @@ export function PerformedExerciseCard({
   const addColumnReasonId = useId()
   const { columns, editColumns, commitColumns, saveFailed, retrySave } = useSetsAutosave(performedExercise, onUnsavedChange)
   const [rirColumnIndex, setRirColumnIndex] = useState<number | null>(null)
-  // 重量を変えずに欄を離れたときは後ろの列へ入れない。消した列が戻らないようにするため
+  // 重量を変更せずに欄を離れたときは、後ろの列へ重量をコピーしない。後ろの列で消した重量が戻らないようにするため
   const editedWeightIndex = useRef<number | null>(null)
 
   function updateColumn(index: number, patch: Partial<SetColumn>): SetColumn[] {

@@ -65,7 +65,7 @@ class TestSaveRestTimer:
 
 # db_session は1本の接続しか持たず、2つのトランザクションを並行させられない。並行した側が先に書いた状態と
 # MySQL のロックの失敗は、行を読む内部メソッドを差し替えて作る。差し替えたメソッドが呼ばれたことは各テストの
-# 末尾で確かめ、メソッド名が変わって差し替えが外れたまま通るのを防ぐ
+# 末尾で確かめ、メソッド名が変わって差し替えが適用されないままテストが通るのを防ぐ
 _MYSQL_DEADLOCK = 1213
 _MYSQL_LOST_CONNECTION = 2013
 
@@ -95,7 +95,7 @@ class _RestTimerRacingRepository(DbRestTimerRepository):
 
 
 class _RestTimerLockFailingRepository(DbRestTimerRepository):
-    """行が無いことを確かめてから INSERT するまでの間に、MySQL がトランザクションを打ち切った状態を作る。"""
+    """1回目の置き換えで、MySQL が error_code の OperationalError を返した状態を作る。"""
 
     _failed = False
 

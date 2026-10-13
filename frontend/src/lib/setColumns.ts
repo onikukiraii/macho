@@ -26,7 +26,7 @@ export function appendColumn(columns: SetColumn[]): SetColumn[] {
   return [...columns, EMPTY_COLUMN]
 }
 
-/** 指定した列の重量を、後ろの重量が空の列へ入れる */
+/** 指定した列の重量を、それより後ろで重量が空の列へコピーする */
 export function fillWeightForward(columns: SetColumn[], index: number): SetColumn[] {
   const { weight } = columns[index]
   return columns.map((column, position) =>
@@ -34,7 +34,7 @@ export function fillWeightForward(columns: SetColumn[], index: number): SetColum
   )
 }
 
-/** 前の列が存在しないか、セットと見なされない（重量か回数が空）なら、入力済みの列を消さないよう何も変えない */
+/** 前の列が存在しないか、重量か回数が空でセットと見なされないときは、入力済みの列を消さないよう何も変えない */
 export function copyPreviousColumn(columns: SetColumn[], index: number): SetColumn[] {
   const previous = columns[index - 1]
   if (previous === undefined || previous.weight === '' || previous.reps === '') return columns
@@ -49,7 +49,7 @@ export function isValidReps(reps: string): boolean {
   return reps === '' || (Number.isInteger(Number(reps)) && Number(reps) >= 0 && Number(reps) <= MAX_REPS)
 }
 
-/** 重量と回数の両方が入った列をセットにする。番号は列の位置で、途中の列が空なら飛ぶ */
+/** 重量と回数の両方が入力された列をセットにする。番号は列の位置で、途中に空の列があれば欠番になる */
 export function toSetParams(columns: SetColumn[]): Schemas['SetParams'][] {
   return columns.flatMap((column, index) =>
     column.weight === '' || column.reps === ''

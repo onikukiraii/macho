@@ -28,8 +28,6 @@ type Schemas = components['schemas']
 
 type DateRange = { from_date: string; to_date: string }
 
-// --- Exercises ---
-
 export const exercisesApi = {
   list: async () => unwrap<Schemas['ExerciseResponse'][]>(await api.GET('/api/exercises')),
   get: async (uid: string) =>
@@ -43,8 +41,6 @@ export const exercisesApi = {
       await api.POST('/api/exercises/{uid}/training-maxes', { params: { path: { uid } }, body }),
     ),
 }
-
-// --- Training logs ---
 
 export const trainingLogsApi = {
   list: async (query: DateRange) =>
@@ -95,8 +91,6 @@ export const trainingLogsApi = {
       }),
     ),
 }
-
-// --- Rest timer ---
 
 export const restTimerApi = {
   subscribe: async (body: Schemas['PushSubscriptionCreateParams']) => {

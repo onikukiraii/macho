@@ -134,7 +134,7 @@ class DbTrainingLogRepository:
         row = self._session.execute(statement).scalar_one_or_none()
         if row is None:
             raise NotFound(f"実施種目が見つかりません: uid={performed_uid}")
-        # 前のセットの DELETE を先に流す。同じ番号の INSERT が先に流れると一意制約に反する
+        # 前のセットの DELETE を先に flush する。同じ番号の INSERT が先に実行されると一意制約に違反する
         row.sets = []
         self._session.flush()
         row.sets = [

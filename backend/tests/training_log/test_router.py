@@ -197,7 +197,7 @@ class TestGetTrainingLog:
 
 
 class _ConflictingTrainingLogRepository(DbTrainingLogRepository):
-    """並行したセットの保存が先に同じ番号のセットを書き、一意制約に当たった状態を作る。"""
+    """並行したセットの保存が先に同じ番号のセットを書き、一意制約に違反した状態を作る。"""
 
     def __init__(self, session: SessionDep) -> None:
         super().__init__(session)

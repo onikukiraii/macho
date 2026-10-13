@@ -18,7 +18,7 @@ class DbRestTimerRepository:
         try:
             self._upsert_push_subscription(endpoint=endpoint, p256dh=p256dh, auth=auth)
         except IntegrityError:
-            # 同じ端末の登録が並行すると、後の INSERT が一意制約に当たる。先に保存された行を上書きし直す
+            # 同じ端末の登録が並行すると、後の INSERT が一意制約に違反する。先に保存された行を上書きし直す
             self._session.rollback()
             self._upsert_push_subscription(endpoint=endpoint, p256dh=p256dh, auth=auth)
 
@@ -42,7 +42,7 @@ class DbRestTimerRepository:
         try:
             self._upsert_rest_timer(timer)
         except IntegrityError:
-            # 行が無いときに開始が並行すると、後の INSERT が slot の一意制約に当たる。先に保存された行を置き換え直す
+            # 行が無いときに開始が並行すると、後の INSERT が slot の一意制約に違反する。先に保存された行を置き換え直す
             self._session.rollback()
             self._upsert_rest_timer(timer)
         except OperationalError as e:

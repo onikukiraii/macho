@@ -257,7 +257,8 @@ def list_rir_records(rows: Iterable[PhaseRow]) -> list[RirRecord]:
 
 
 def fill_rir(training_logs: Sequence[LegacyTrainingLog], records: Iterable[RirRecord]) -> RirFilling:
-    # ponytail: 目安日・種目・重量・回数が一致する最初のセットにだけ入れる。外れが多ければ日付の前後1日まで広げる
+    # ponytail: RIR は目安日・種目・重量・回数が一致する最初のセットに限って設定する。
+    # 一致しない記録が多ければ、日付の前後1日まで探す範囲を広げる
     logs_by_date = {training_log.date: training_log for training_log in training_logs}
     unfilled_count = 0
     for record in records:
@@ -562,7 +563,8 @@ def _create_training_log(
         program_day_uid=program_day_uid,
         today=today,
     ).training_log
-    # Day に紐付いた記録は予定種目が空のセットで作られる。同じ種目の予定種目へセットを入れ、予定に無い種目は末尾に足す
+    # Day に紐付いた記録は、予定種目ごとにセットが空の実施種目を持って作られる。同じ種目の実施種目へセットを入れ、
+    # 予定に無い種目は末尾に追加する
     unfilled = list(created.exercises)
     for legacy_exercise in training_log.exercises:
         exercise = exercises[legacy_exercise.name]

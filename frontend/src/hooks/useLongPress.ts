@@ -42,7 +42,7 @@ export function useLongPress(onLongPress: () => void): LongPressHandlers {
     onPointerUp: cancelLongPress,
     onPointerLeave: cancelLongPress,
     onPointerCancel: cancelLongPress,
-    // iOS の長押しで出るメニューを抑える
+    // iOS で長押ししたときに表示されるメニューを抑止する
     onContextMenu: (event) => event.preventDefault(),
   }
 }

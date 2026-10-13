@@ -6,7 +6,7 @@ import { Button } from '@/components/dads/Button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { TrainingMaxChangeSheet } from '@/components/TrainingMaxChangeSheet'
 import { useLoadable, type Loadable } from '@/hooks/useLoadable'
-import { formatLocalDate } from '@/lib/dates'
+import { formatDateString, formatLocalDate } from '@/lib/dates'
 import { formatSet } from '@/lib/exercises'
 
 const DETAIL_FAILURE_MESSAGE = '種目を取得できませんでした'
@@ -72,7 +72,7 @@ function ExerciseHistorySection({ uid }: { uid: string }): ReactElement {
         history.value.map((entry) => (
           <article key={entry.training_log_uid} className="flex flex-col gap-1 rounded-8 bg-card p-3">
             <Link to={`/training-logs/${entry.training_log_uid}`} className="flex items-baseline gap-2 text-std-16B-170">
-              {entry.date}
+              {formatDateString(entry.date)}
               {entry.day_label !== null && <span className="text-dns-14N-130 text-muted-foreground">{entry.day_label}</span>}
             </Link>
             <ul className="text-dns-14N-130">
@@ -99,12 +99,12 @@ function ExerciseDetailView({ uid }: { uid: string }): ReactElement {
               <h1 className="text-std-24B-150">{detail.value.exercise.name}</h1>
               <p className="text-dns-14N-130 text-muted-foreground">{EXERCISE_KIND_LABEL[detail.value.exercise.kind]}</p>
             </>
-          ) : (
+          ) : detail.status === 'loading' ? (
             <>
               <Skeleton className="h-9 w-40" />
               <Skeleton className="h-5 w-32" />
             </>
-          )}
+          ) : null}
         </div>
         <Button asChild size="sm" variant="outline">
           <Link to={`/exercises/${uid}/edit`}>編集</Link>

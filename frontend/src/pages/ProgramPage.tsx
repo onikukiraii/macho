@@ -5,6 +5,7 @@ import { DAY_STATUS_LABEL, WEEKDAY_LABEL, type DayStatus, type ProgramWeekProgre
 import { Disclosure, DisclosureSummary } from '@/components/dads/Disclosure'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useLoadable } from '@/hooks/useLoadable'
+import { formatDateString } from '@/lib/dates'
 
 const LOAD_FAILURE_MESSAGE = 'プログラムを取得できませんでした'
 
@@ -81,7 +82,7 @@ export function ProgramPage(): ReactElement {
       <header className="flex flex-col gap-1">
         <h1 className="text-std-24B-150">{program.name}</h1>
         <p className="text-dns-14N-130 text-muted-foreground">
-          {program.start_date} 開始 / 全{program.week_count}週
+          {formatDateString(program.start_date)} 開始 / 全{program.week_count}週
         </p>
       </header>
       {program.design_note !== '' && <p className="whitespace-pre-wrap text-dns-16N-130">{program.design_note}</p>}

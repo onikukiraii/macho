@@ -27,7 +27,8 @@ function TrainingMaxChangeForm({ exercise, onClose, onChanged }: Omit<TrainingMa
       onChanged(await exercisesApi.createTrainingMax(exercise.uid, { value: Number(value), reason }))
       onClose()
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'トレーニングマックスを変更できませんでした')
+      if (!(error instanceof Error)) throw error
+      toast.error(`トレーニングマックスを変更できませんでした。${error.message}`)
     } finally {
       setSaving(false)
     }

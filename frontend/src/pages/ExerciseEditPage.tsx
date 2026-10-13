@@ -30,7 +30,7 @@ function ExerciseForm({ exercises, editing, initialName, returnTo }: ExerciseFor
   const [defaultRestSeconds, setDefaultRestSeconds] = useState(editing?.default_rest_seconds.toString() ?? '90')
   const [saving, setSaving] = useState(false)
 
-  const parentCandidates = exercises.filter((exercise) => exercise.parent_uid === null && exercise.uid !== editing?.uid)
+  const parentCandidates = exercises.filter((exercise) => exercise.kind !== 'derived' && exercise.uid !== editing?.uid)
   const parent = parentCandidates.find((exercise) => exercise.uid === parentUid)
 
   async function saveExercise(event: FormEvent): Promise<void> {
@@ -53,7 +53,8 @@ function ExerciseForm({ exercises, editing, initialName, returnTo }: ExerciseFor
           : resolveReturnTo(returnTo, window.location.origin, editing === null ? { createdExerciseUid: saved.uid } : {})
       navigate(destination ?? `/exercises/${saved.uid}`)
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : '種目を保存できませんでした')
+      if (!(error instanceof Error)) throw error
+      toast.error(`種目を保存できませんでした。${error.message}`)
       setSaving(false)
     }
   }

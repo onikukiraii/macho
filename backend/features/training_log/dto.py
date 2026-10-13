@@ -1,6 +1,6 @@
 import datetime as dt
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from features.program.types import Weekday
 from features.training_log.types import DayStatus
@@ -117,6 +117,14 @@ class PerformedExerciseUpdateParams(BaseModel):
 
 class SetsReplaceParams(BaseModel):
     sets: list[SetParams] = Field(max_length=50)
+
+    @field_validator("sets")
+    @classmethod
+    def validate_unique_orders(cls, sets: list[SetParams]) -> list[SetParams]:
+        orders = [exercise_set.order for exercise_set in sets]
+        if len(set(orders)) != len(orders):
+            raise ValueError("同じセット番号が複数あります")
+        return sets
 
 
 class ExerciseHistoryEntryResponse(BaseModel):

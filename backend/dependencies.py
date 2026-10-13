@@ -14,6 +14,8 @@ from features.exercise.protocol import ExerciseRepository
 from features.exercise.repository import DbExerciseRepository
 from features.program.protocol import ProgramRepository
 from features.program.repository import DbProgramRepository
+from features.training_log.protocol import TrainingLogRepository
+from features.training_log.repository import DbTrainingLogRepository
 from worker.app import celery_app
 
 
@@ -42,3 +44,7 @@ def get_exercise_repository(session: SessionDep) -> ExerciseRepository:
 
 def get_program_repository(session: SessionDep) -> ProgramRepository:
     return DbProgramRepository(session)
+
+
+def get_training_log_repository(session: SessionDep) -> TrainingLogRepository:
+    return DbTrainingLogRepository(session)

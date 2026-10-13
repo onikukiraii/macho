@@ -1,5 +1,6 @@
 import csv
 import io
+import logging
 from datetime import UTC, date, datetime
 from pathlib import Path
 
@@ -569,6 +570,25 @@ class TestImportLegacyRecords:
             if exercise.name == "フェイスプル"
         } == {"フェイスプル": (None, 33.3, 90)}
 
+    def test_種目マスタにも_CSV_にも無い予定の種目名は作る前に警告する(
+        self, db_session: Session, tmp_path: Path, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        caplog.set_level(logging.WARNING)
+
+        _import(
+            db_session,
+            tmp_path,
+            kinnik_rows=[_kinnik("2026-09-14", "ラットプルダウン", 1, "55", "10")],
+            bulking_rows=[
+                _phase("1", "2026-09-28", "Day1 月", "スクワット", "SQ"),
+                _phase("1", "2026-09-28", "Day1 月", "ラットプルダウン", "補助"),
+                _phase("1", "2026-09-28", "Day1 月", "ラットプル", "補助"),
+            ],
+        )
+
+        warnings = [record.getMessage() for record in caplog.records if record.levelno == logging.WARNING]
+        assert [message.partition(": ")[2] for message in warnings] == ["['ラットプル']"]
+
     @pytest.mark.parametrize(
         ("kinnik_rows", "bulking_rows", "master", "prompt", "reason"),
         [
@@ -609,6 +629,17 @@ class TestImportLegacyRecords:
                 PROMPT,
                 "増量期シートの週番号が重複しています",
                 id="週番号が重複する",
+            ),
+            pytest.param(
+                [_kinnik("2026-10-01", "スクワット", 1, "80", "5")],
+                [
+                    _phase("1", "2026-09-28", "Day1 月", "スクワット", "SQ"),
+                    _phase("1", "2026-09-29", "Day1 火", "ベンチプレス", "BP"),
+                ],
+                MASTER,
+                PROMPT,
+                "増量期シートの週に同じ Day の番号があります",
+                id="同じ週の Day の番号が重複する",
             ),
             pytest.param(
                 [],
@@ -724,6 +755,17 @@ class TestParseTrainingCsv:
         csv.writer(text).writerows([KINNIK_HEADER, _kinnik("2026-10-01", "ダンベルカール", 1, weight, reps)])
 
         assert parse_training_csv(text.getvalue())[0].exercises[0].sets == (expected,)
+
+    def test_種目名の前後の空白は除いて同じ種目にまとめる(self) -> None:
+        text = io.StringIO()
+        csv.writer(text).writerows(
+            [KINNIK_HEADER, _kinnik("2026-10-01", "懸垂 ", 1, "0", "8"), _kinnik("2026-10-01", "懸垂", 2, "0", "7")]
+        )
+
+        assert [
+            (exercise.name, [exercise_set.order for exercise_set in exercise.sets])
+            for exercise in parse_training_csv(text.getvalue())[0].exercises
+        ] == [("懸垂", [1, 2])]
 
 
 class TestMain:

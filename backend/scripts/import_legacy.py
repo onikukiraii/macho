@@ -126,7 +126,7 @@ class RirFilling:
 def parse_training_csv(text: str) -> list[LegacyTrainingLog]:
     exercises_by_date: dict[date, list[LegacyExercise]] = {}
     for row in csv.DictReader(io.StringIO(text)):
-        name = EXERCISE_NAMES.get(row["種目"], row["種目"])
+        name = EXERCISE_NAMES.get(row["種目"].strip(), row["種目"].strip())
         # KINNIK は重量の空欄と小数の回数を許す。セットの数を保つため、空欄は 0kg、回数は四捨五入で取り込む
         exercise_set = ExerciseSet(
             order=int(row["セット"]),
@@ -169,10 +169,16 @@ def plan_exercises(
         for exercise in master
     ]
     master_names = {exercise.name for exercise in master}
+    performed_names = dict.fromkeys(exercise.name for log in training_logs for exercise in log.exercises)
+    planned_names = list(dict.fromkeys(planned_names))
+    unperformed_names = [name for name in planned_names if name not in master_names and name not in performed_names]
+    if len(unperformed_names) > 0:
+        logger.warning(
+            "種目マスタにも KINNIK の CSV にも無い予定の種目を作ります。表記のずれでないか確認してください: %s",
+            unperformed_names,
+        )
     # 増量期の予定にあってまだ実施していない補助種目も、予定種目の参照先として作る
-    logged_names = dict.fromkeys(
-        [*(exercise.name for log in training_logs for exercise in log.exercises), *planned_names]
-    )
+    logged_names = dict.fromkeys([*performed_names, *planned_names])
     from_logs = [
         ExerciseToCreate(
             name=name,
@@ -268,6 +274,14 @@ def validate_bulking_rows(rows: Sequence[PhaseRow]) -> None:
     for row in rows:
         if DAY_PATTERN.fullmatch(row.day) is None:
             raise InvalidLegacyFile(f"増量期シートの Day の列の形式が不正です: 週 {row.week} の {row.day}")
+    day_numbers = Counter(
+        (_week_number(week), day.partition(" ")[0])
+        for week, day in dict.fromkeys((row.week, row.day) for row in rows)
+        if not day.startswith(TEST_DAY_PREFIX)
+    )
+    duplicated_days = [f"週 {week} の {prefix}" for (week, prefix), count in day_numbers.items() if count > 1]
+    if len(duplicated_days) > 0:
+        raise InvalidLegacyFile(f"増量期シートの週に同じ Day の番号があります: {duplicated_days}")
     week_counts = Counter(_week_number(week) for week in dict.fromkeys(row.week for row in rows))
     duplicated_weeks = [week for week, count in week_counts.items() if count > 1]
     if len(duplicated_weeks) > 0:
@@ -491,7 +505,7 @@ def _read_master_exercises(workbook: Workbook) -> list[MasterExercise]:
     )
     next(rows)
     return [
-        MasterExercise(name=row[0], category=row[1], coefficient=float(row[2]))
+        MasterExercise(name=row[0].strip(), category=row[1], coefficient=float(row[2]))
         for row in takewhile(lambda row: row[0] is not None, rows)
     ]
 
@@ -502,7 +516,7 @@ def _read_phase_rows(worksheet: Worksheet) -> list[PhaseRow]:
             week=str(row[0]),
             guide_date=row[1].date(),
             day=str(row[2]),
-            exercise_name=row[3],
+            exercise_name=row[3].strip(),
             sets=int(row[5]),
             reps=int(row[6]),
             target_rpe=None if row[7] is None else float(row[7]),

@@ -9,6 +9,7 @@ Create Date: 2026-10-14
 from collections.abc import Sequence
 
 import sqlalchemy as sa
+from sqlalchemy.dialects import mysql
 
 from alembic import op
 
@@ -18,13 +19,19 @@ down_revision: str | Sequence[str] | None = None
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
+DATETIME_6 = sa.DateTime().with_variant(mysql.DATETIME(fsp=6), "mysql")
+
 
 def upgrade() -> None:
     op.create_table(
         "exercises",
         sa.Column("id", sa.Integer(), autoincrement=True, nullable=False),
         sa.Column("uid", sa.String(length=36), nullable=False),
-        sa.Column("name", sa.String(length=64), nullable=False),
+        sa.Column(
+            "name",
+            sa.String(length=64).with_variant(mysql.VARCHAR(64, collation="utf8mb4_0900_as_cs"), "mysql"),
+            nullable=False,
+        ),
         sa.Column("parent_id", sa.Integer(), nullable=True),
         sa.Column("coefficient", sa.Float(), nullable=True),
         sa.Column("e1rm_divisor", sa.Float(), nullable=True),
@@ -55,7 +62,7 @@ def upgrade() -> None:
         sa.Column("endpoint", sa.String(length=500), nullable=False),
         sa.Column("p256dh", sa.String(length=128), nullable=False),
         sa.Column("auth", sa.String(length=64), nullable=False),
-        sa.Column("created_at", sa.DateTime(), nullable=False),
+        sa.Column("created_at", DATETIME_6, nullable=False),
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("endpoint"),
     )
@@ -64,8 +71,8 @@ def upgrade() -> None:
         sa.Column("id", sa.Integer(), autoincrement=True, nullable=False),
         sa.Column("uid", sa.String(length=36), nullable=False),
         sa.Column("slot", sa.Integer(), nullable=False),
-        sa.Column("started_at", sa.DateTime(), nullable=False),
-        sa.Column("ends_at", sa.DateTime(), nullable=False),
+        sa.Column("started_at", DATETIME_6, nullable=False),
+        sa.Column("ends_at", DATETIME_6, nullable=False),
         sa.Column("total_seconds", sa.Integer(), nullable=False),
         sa.Column("next_set_label", sa.String(length=100), nullable=False),
         sa.CheckConstraint("slot = 1", name="ck_rest_timers_slot"),
@@ -77,7 +84,7 @@ def upgrade() -> None:
         "training_max_evaluations",
         sa.Column("id", sa.Integer(), autoincrement=True, nullable=False),
         sa.Column("week_start", sa.Date(), nullable=False),
-        sa.Column("created_at", sa.DateTime(), nullable=False),
+        sa.Column("created_at", DATETIME_6, nullable=False),
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("week_start"),
     )
@@ -99,7 +106,7 @@ def upgrade() -> None:
         sa.Column("id", sa.Integer(), autoincrement=True, nullable=False),
         sa.Column("exercise_id", sa.Integer(), nullable=False),
         sa.Column("value", sa.Float(), nullable=False),
-        sa.Column("effective_at", sa.DateTime(), nullable=False),
+        sa.Column("effective_at", DATETIME_6, nullable=False),
         sa.Column("source", sa.String(length=16), nullable=False),
         sa.Column("reason", sa.String(length=255), nullable=False),
         sa.ForeignKeyConstraint(
@@ -200,4 +207,4 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    pass
+    raise NotImplementedError

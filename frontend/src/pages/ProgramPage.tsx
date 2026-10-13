@@ -1,14 +1,14 @@
-import { useEffect, useState } from 'react'
+import type { ReactElement } from 'react'
 import { Link } from 'react-router-dom'
-import { toast } from 'sonner'
 import { trainingLogsApi } from '@/api/fetcher'
-import { DAY_STATUS_LABEL, WEEKDAY_LABEL, type DayStatus } from '@/api/constants'
+import { DAY_STATUS_LABEL, WEEKDAY_LABEL, type DayStatus, type ProgramWeekProgress } from '@/api/constants'
+import { Disclosure, DisclosureSummary } from '@/components/dads/Disclosure'
 import { Skeleton } from '@/components/ui/skeleton'
+import { useLoadable } from '@/hooks/useLoadable'
 
-type Progress = NonNullable<Awaited<ReturnType<typeof trainingLogsApi.programProgress>>>
-type Week = Progress['weeks'][number]
+const LOAD_FAILURE_MESSAGE = 'プログラムを取得できませんでした'
 
-function DayStatusBadge({ status }: { status: DayStatus }) {
+function DayStatusBadge({ status }: { status: DayStatus }): ReactElement {
   return (
     <span
       data-status={status}
@@ -19,15 +19,15 @@ function DayStatusBadge({ status }: { status: DayStatus }) {
   )
 }
 
-function WeekDays({ week }: { week: Week }) {
+function WeekDays({ week }: { week: ProgramWeekProgress }): ReactElement {
   return (
     <ul className="flex flex-col divide-y divide-border">
       {week.days.map((day) => {
         const row = (
           <>
-            <span className="text-std-16B-170">
+            <span className="flex items-baseline gap-2 text-std-16B-170">
               Day {day.day}
-              <span className="ml-2 text-dns-14N-130 text-muted-foreground">{WEEKDAY_LABEL[day.weekday]}曜日</span>
+              <span className="text-dns-14N-130 text-muted-foreground">{WEEKDAY_LABEL[day.weekday]}曜日</span>
             </span>
             <DayStatusBadge status={day.status} />
           </>
@@ -48,64 +48,66 @@ function WeekDays({ week }: { week: Week }) {
   )
 }
 
-export function ProgramPage() {
-  const [progress, setProgress] = useState<Progress | null | 'failed' | 'loading'>('loading')
+function WeekTitle({ week }: { week: ProgramWeekProgress }): ReactElement {
+  return (
+    <span className="flex items-baseline gap-2 text-std-18B-160">
+      第{week.week}週<span className="text-dns-14N-130 text-muted-foreground">{week.label}</span>
+    </span>
+  )
+}
 
-  useEffect(() => {
-    let cancelled = false
-    trainingLogsApi
-      .programProgress()
-      .then((loaded) => !cancelled && setProgress(loaded))
-      .catch(() => {
-        if (cancelled) return
-        toast.error('プログラムを取得できませんでした')
-        setProgress('failed')
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [])
+export function ProgramPage(): ReactElement {
+  const [progress] = useLoadable(trainingLogsApi.programProgress, LOAD_FAILURE_MESSAGE)
 
-  if (progress === 'loading') return <Skeleton className="m-4 h-60" />
-  if (progress === 'failed') return <p className="p-4 text-muted-foreground">プログラムを取得できませんでした</p>
-  if (progress === null) return <p className="p-4 text-muted-foreground">進行中のプログラムはありません</p>
+  if (progress.status === 'loading') {
+    return (
+      <div className="flex flex-col gap-6 p-4">
+        <header className="flex flex-col gap-1">
+          <Skeleton className="h-9 w-48" />
+          <Skeleton className="h-5 w-40" />
+        </header>
+        <Skeleton className="h-60" />
+      </div>
+    )
+  }
+  if (progress.status === 'failed') return <p className="p-4 text-muted-foreground">{LOAD_FAILURE_MESSAGE}</p>
+  if (progress.value === null) return <p className="p-4 text-muted-foreground">進行中のプログラムはありません</p>
 
-  const nextWeek = progress.weeks.find((week) => week.days.some((day) => day.status === 'next'))?.week
+  const program = progress.value
+  const nextWeek = program.weeks.find((week) => week.days.some((day) => day.status === 'next'))?.week
 
   return (
     <div className="flex flex-col gap-6 p-4">
       <header className="flex flex-col gap-1">
-        <h1 className="text-std-24B-150">{progress.name}</h1>
+        <h1 className="text-std-24B-150">{program.name}</h1>
         <p className="text-dns-14N-130 text-muted-foreground">
-          {progress.start_date} 開始 / 全{progress.week_count}週
+          {program.start_date} 開始 / 全{program.week_count}週
         </p>
       </header>
-      {progress.design_note !== '' && <p className="whitespace-pre-wrap text-dns-16N-130">{progress.design_note}</p>}
+      {program.design_note !== '' && <p className="whitespace-pre-wrap text-dns-16N-130">{program.design_note}</p>}
       <div className="flex flex-col gap-3">
-        {progress.weeks.map((week) => {
+        {program.weeks.map((week) => {
           const collapsed = nextWeek !== undefined && week.week > nextWeek
           if (!collapsed) {
             return (
               <section key={week.week} className="flex flex-col gap-1 rounded-8 bg-card p-3">
-                <h2 className="text-std-18B-160">
-                  第{week.week}週<span className="ml-2 text-dns-14N-130 text-muted-foreground">{week.label}</span>
+                <h2>
+                  <WeekTitle week={week} />
                 </h2>
                 <WeekDays week={week} />
               </section>
             )
           }
           return (
-            <details key={week.week} className="rounded-8 bg-card p-3">
-              <summary className="flex cursor-pointer items-center justify-between gap-4">
-                <span className="text-std-18B-160">
-                  第{week.week}週<span className="ml-2 text-dns-14N-130 text-muted-foreground">{week.label}</span>
-                </span>
+            <Disclosure key={week.week} className="rounded-8 bg-card p-3">
+              <DisclosureSummary className="w-full items-center justify-between">
+                <WeekTitle week={week} />
                 <span className="text-dns-14N-130 text-muted-foreground">
                   未消化 {week.days.filter((day) => day.status === 'pending').length} 日
                 </span>
-              </summary>
+              </DisclosureSummary>
               <WeekDays week={week} />
-            </details>
+            </Disclosure>
           )
         })}
       </div>

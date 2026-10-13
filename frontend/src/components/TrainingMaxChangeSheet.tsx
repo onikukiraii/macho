@@ -1,32 +1,33 @@
-import { useState, type FormEvent } from 'react'
+import { useState, type FormEvent, type ReactElement } from 'react'
 import { toast } from 'sonner'
+import type { Exercise, ExerciseDetail } from '@/api/constants'
 import { exercisesApi } from '@/api/fetcher'
 import { BottomSheet } from '@/components/BottomSheet'
 import { Button } from '@/components/dads/Button'
 import { Input } from '@/components/dads/Input'
-
-type ExerciseDetail = Awaited<ReturnType<typeof exercisesApi.get>>
+import { InputField } from '@/components/InputField'
 
 type TrainingMaxChangeSheetProps = {
   open: boolean
   onClose: () => void
-  exercise: ExerciseDetail['exercise']
+  exercise: Exercise
   onChanged: (detail: ExerciseDetail) => void
 }
 
-function TrainingMaxChangeForm({ exercise, onClose, onChanged }: Omit<TrainingMaxChangeSheetProps, 'open'>) {
+function TrainingMaxChangeForm({ exercise, onClose, onChanged }: Omit<TrainingMaxChangeSheetProps, 'open'>): ReactElement {
   const [value, setValue] = useState(exercise.current_training_max?.toString() ?? '')
   const [reason, setReason] = useState('')
   const [saving, setSaving] = useState(false)
 
-  async function submitTrainingMax(event: FormEvent) {
+  async function submitTrainingMax(event: FormEvent): Promise<void> {
     event.preventDefault()
+    if (saving) return
     setSaving(true)
     try {
       onChanged(await exercisesApi.createTrainingMax(exercise.uid, { value: Number(value), reason }))
       onClose()
-    } catch {
-      toast.error('トレーニングマックスを変更できませんでした')
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'トレーニングマックスを変更できませんでした')
     } finally {
       setSaving(false)
     }
@@ -34,23 +35,21 @@ function TrainingMaxChangeForm({ exercise, onClose, onChanged }: Omit<TrainingMa
 
   return (
     <form onSubmit={submitTrainingMax} className="flex flex-col gap-4">
-      <label className="flex flex-col gap-1">
-        <span className="text-std-16B-170">トレーニングマックス (kg)</span>
+      <InputField label="トレーニングマックス (kg)">
         <Input
           type="number"
           inputMode="decimal"
           step="any"
-          min={0}
+          min={0.01}
           max={500}
           required
           value={value}
           onChange={(event) => setValue(event.target.value)}
         />
-      </label>
-      <label className="flex flex-col gap-1">
-        <span className="text-std-16B-170">理由</span>
+      </InputField>
+      <InputField label="理由">
         <Input type="text" maxLength={255} required value={reason} onChange={(event) => setReason(event.target.value)} />
-      </label>
+      </InputField>
       <Button type="submit" size="lg" variant="solid-fill" aria-disabled={saving} className="w-full">
         {saving ? '保存中' : '変更する'}
       </Button>
@@ -58,10 +57,10 @@ function TrainingMaxChangeForm({ exercise, onClose, onChanged }: Omit<TrainingMa
   )
 }
 
-export function TrainingMaxChangeSheet({ open, onClose, exercise, onChanged }: TrainingMaxChangeSheetProps) {
+export function TrainingMaxChangeSheet({ open, onClose, exercise, onChanged }: TrainingMaxChangeSheetProps): ReactElement {
   return (
     <BottomSheet open={open} onClose={onClose} title="トレーニングマックスを変更">
-      {open && <TrainingMaxChangeForm exercise={exercise} onClose={onClose} onChanged={onChanged} />}
+      <TrainingMaxChangeForm exercise={exercise} onClose={onClose} onChanged={onChanged} />
     </BottomSheet>
   )
 }

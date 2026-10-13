@@ -5,6 +5,11 @@ type Schemas = components['schemas']
 export type ExerciseKind = Schemas['ExerciseKind']
 export type DayStatus = Schemas['DayStatus']
 export type Weekday = Schemas['Weekday']
+export type Exercise = Schemas['ExerciseResponse']
+export type ExerciseDetail = Schemas['ExerciseDetailResponse']
+export type ExerciseHistoryEntry = Schemas['ExerciseHistoryEntryResponse']
+export type ProgramWeekProgress = Schemas['ProgramWeekProgressResponse']
+export type ProgramProgress = Schemas['ProgramProgressResponse']
 
 export const EXERCISE_KIND_LABEL: Record<ExerciseKind, string> = {
   training_max: 'トレーニングマックスを持つ種目',

@@ -1,13 +1,17 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { useState, type FormEvent, type ReactElement } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
+import type { Exercise } from '@/api/constants'
 import { exercisesApi } from '@/api/fetcher'
 import { Button } from '@/components/dads/Button'
 import { Input } from '@/components/dads/Input'
 import { Select } from '@/components/dads/Select'
+import { InputField } from '@/components/InputField'
 import { Skeleton } from '@/components/ui/skeleton'
+import { useLoadable } from '@/hooks/useLoadable'
+import { resolveReturnTo } from '@/lib/returnTo'
 
-type Exercise = Awaited<ReturnType<typeof exercisesApi.list>>[number]
+const LOAD_FAILURE_MESSAGE = '種目の一覧を取得できませんでした'
 
 type ExerciseFormProps = {
   exercises: Exercise[]
@@ -16,7 +20,7 @@ type ExerciseFormProps = {
   returnTo: string | null
 }
 
-function ExerciseForm({ exercises, editing, initialName, returnTo }: ExerciseFormProps) {
+function ExerciseForm({ exercises, editing, initialName, returnTo }: ExerciseFormProps): ReactElement {
   const navigate = useNavigate()
   const [name, setName] = useState(editing?.name ?? initialName)
   const [parentUid, setParentUid] = useState(editing?.parent_uid ?? '')
@@ -26,47 +30,40 @@ function ExerciseForm({ exercises, editing, initialName, returnTo }: ExerciseFor
   const [defaultRestSeconds, setDefaultRestSeconds] = useState(editing?.default_rest_seconds.toString() ?? '90')
   const [saving, setSaving] = useState(false)
 
-  const parentCandidates = exercises.filter(
-    (exercise) => exercise.kind === 'training_max' && exercise.uid !== editing?.uid,
-  )
+  const parentCandidates = exercises.filter((exercise) => exercise.parent_uid === null && exercise.uid !== editing?.uid)
+  const parent = parentCandidates.find((exercise) => exercise.uid === parentUid)
 
-  async function saveExercise(event: FormEvent) {
+  async function saveExercise(event: FormEvent): Promise<void> {
     event.preventDefault()
+    if (saving) return
     setSaving(true)
     const params = {
       name,
-      parent_uid: parentUid === '' ? null : parentUid,
-      coefficient: parentUid === '' ? null : Number(coefficient),
-      e1rm_divisor: parentUid === '' ? Number(e1rmDivisor) : null,
+      parent_uid: parent === undefined ? null : parent.uid,
+      coefficient: parent === undefined ? null : Number(coefficient),
+      e1rm_divisor: parent === undefined ? Number(e1rmDivisor) : null,
       increment_kg: Number(incrementKg),
       default_rest_seconds: Number(defaultRestSeconds),
     }
     try {
       const saved = editing === null ? await exercisesApi.create(params) : await exercisesApi.update(editing.uid, params)
-      if (returnTo === null) {
-        navigate(`/exercises/${saved.uid}`)
-      } else if (editing === null) {
-        const destination = new URL(returnTo, window.location.origin)
-        destination.searchParams.set('createdExerciseUid', saved.uid)
-        navigate(destination.pathname + destination.search)
-      } else {
-        navigate(returnTo)
-      }
-    } catch {
-      toast.error('種目を保存できませんでした')
+      const destination =
+        returnTo === null
+          ? null
+          : resolveReturnTo(returnTo, window.location.origin, editing === null ? { createdExerciseUid: saved.uid } : {})
+      navigate(destination ?? `/exercises/${saved.uid}`)
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : '種目を保存できませんでした')
       setSaving(false)
     }
   }
 
   return (
-    <form onSubmit={saveExercise} className="flex flex-col gap-4 p-4">
-      <h1 className="text-std-24B-150">{editing === null ? '種目を作成' : '種目を編集'}</h1>
-      <label className="flex flex-col gap-1">
-        <span className="text-std-16B-170">名前</span>
+    <form onSubmit={saveExercise} className="flex flex-col gap-4">
+      <InputField label="名前">
         <Input required maxLength={64} value={name} onChange={(event) => setName(event.target.value)} />
-      </label>
-      <label className="flex flex-col gap-1">
-        <span className="text-std-16B-170">派生元の種目</span>
+      </InputField>
+      <InputField label="派生元の種目">
         <Select value={parentUid} onChange={(event) => setParentUid(event.target.value)}>
           <option value="">なし</option>
           {parentCandidates.map((exercise) => (
@@ -75,26 +72,58 @@ function ExerciseForm({ exercises, editing, initialName, returnTo }: ExerciseFor
             </option>
           ))}
         </Select>
-      </label>
-      {parentUid === '' ? (
-        <label className="flex flex-col gap-1">
-          <span className="text-std-16B-170">1RM の推定式の分母</span>
-          <Input type="number" inputMode="decimal" step="any" min={0} max={100} required value={e1rmDivisor} onChange={(event) => setE1rmDivisor(event.target.value)} />
-        </label>
-      ) : (
-        <label className="flex flex-col gap-1">
-          <span className="text-std-16B-170">換算係数</span>
-          <Input type="number" inputMode="decimal" step="any" min={0} max={2} required value={coefficient} onChange={(event) => setCoefficient(event.target.value)} />
-        </label>
+      </InputField>
+      <InputField label="1RM の推定式の分母">
+        <Input
+          type="number"
+          inputMode="decimal"
+          step="any"
+          min={0.01}
+          max={100}
+          required
+          aria-disabled={parent !== undefined}
+          value={parent === undefined ? e1rmDivisor : parent.e1rm_divisor}
+          onChange={(event) => setE1rmDivisor(event.target.value)}
+        />
+      </InputField>
+      {parent !== undefined && (
+        <InputField label="換算係数">
+          <Input
+            type="number"
+            inputMode="decimal"
+            step="any"
+            min={0.01}
+            max={2}
+            required
+            value={coefficient}
+            onChange={(event) => setCoefficient(event.target.value)}
+          />
+        </InputField>
       )}
-      <label className="flex flex-col gap-1">
-        <span className="text-std-16B-170">上げる幅 (kg)</span>
-        <Input type="number" inputMode="decimal" step="any" min={0} max={20} required value={incrementKg} onChange={(event) => setIncrementKg(event.target.value)} />
-      </label>
-      <label className="flex flex-col gap-1">
-        <span className="text-std-16B-170">レスト秒数</span>
-        <Input type="number" inputMode="numeric" step={1} min={1} max={900} required value={defaultRestSeconds} onChange={(event) => setDefaultRestSeconds(event.target.value)} />
-      </label>
+      <InputField label="上げる幅 (kg)">
+        <Input
+          type="number"
+          inputMode="decimal"
+          step="any"
+          min={0.01}
+          max={20}
+          required
+          value={incrementKg}
+          onChange={(event) => setIncrementKg(event.target.value)}
+        />
+      </InputField>
+      <InputField label="レスト秒数">
+        <Input
+          type="number"
+          inputMode="numeric"
+          step={1}
+          min={1}
+          max={900}
+          required
+          value={defaultRestSeconds}
+          onChange={(event) => setDefaultRestSeconds(event.target.value)}
+        />
+      </InputField>
       <Button type="submit" size="lg" variant="solid-fill" aria-disabled={saving} className="w-full">
         {saving ? '保存中' : '保存する'}
       </Button>
@@ -102,39 +131,29 @@ function ExerciseForm({ exercises, editing, initialName, returnTo }: ExerciseFor
   )
 }
 
-export function ExerciseEditPage() {
+export function ExerciseEditPage(): ReactElement {
   const { uid } = useParams<{ uid: string }>()
   const [searchParams] = useSearchParams()
-  const [exercises, setExercises] = useState<Exercise[] | 'failed' | null>(null)
+  const [exercises] = useLoadable(exercisesApi.list, LOAD_FAILURE_MESSAGE)
 
-  useEffect(() => {
-    let cancelled = false
-    exercisesApi
-      .list()
-      .then((list) => !cancelled && setExercises(list))
-      .catch(() => {
-        if (cancelled) return
-        toast.error('種目の一覧を取得できませんでした')
-        setExercises('failed')
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [])
+  const editing = exercises.status === 'loaded' ? (exercises.value.find((exercise) => exercise.uid === uid) ?? null) : null
 
-  if (exercises === null) return <Skeleton className="m-4 h-60" />
-  if (exercises === 'failed') return <p className="p-4 text-muted-foreground">種目の一覧を取得できませんでした</p>
-
-  const editing = exercises.find((exercise) => exercise.uid === uid) ?? null
-  if (uid !== undefined && editing === null) return <p className="p-4 text-muted-foreground">種目が見つかりません</p>
-
-  const returnTo = searchParams.get('returnTo')
   return (
-    <ExerciseForm
-      exercises={exercises}
-      editing={editing}
-      initialName={searchParams.get('name') ?? ''}
-      returnTo={returnTo !== null && /^\/(?![/\\])/.test(returnTo) ? returnTo : null}
-    />
+    <div className="flex flex-col gap-4 p-4">
+      <h1 className="text-std-24B-150">{uid === undefined ? '種目を作成' : '種目を編集'}</h1>
+      {exercises.status === 'loading' && <Skeleton className="h-60" />}
+      {exercises.status === 'failed' && <p className="text-muted-foreground">{LOAD_FAILURE_MESSAGE}</p>}
+      {exercises.status === 'loaded' && uid !== undefined && editing === null && (
+        <p className="text-muted-foreground">種目が見つかりません</p>
+      )}
+      {exercises.status === 'loaded' && (uid === undefined || editing !== null) && (
+        <ExerciseForm
+          exercises={exercises.value}
+          editing={editing}
+          initialName={searchParams.get('name') ?? ''}
+          returnTo={searchParams.get('returnTo')}
+        />
+      )}
+    </div>
   )
 }

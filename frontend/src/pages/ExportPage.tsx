@@ -1,44 +1,34 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useState, type ReactElement } from 'react'
 import { toast } from 'sonner'
 import { trainingLogsApi } from '@/api/fetcher'
 import { Button } from '@/components/dads/Button'
+import { ErrorText } from '@/components/dads/ErrorText'
 import { Input } from '@/components/dads/Input'
+import { InputField } from '@/components/InputField'
+import { Skeleton } from '@/components/ui/skeleton'
+import { useLoadable } from '@/hooks/useLoadable'
+import { defaultExportFromDate, toDateInputValue } from '@/lib/dates'
 
-function localDateString(date: Date): string {
-  return date.toLocaleDateString('sv-SE')
+const COUNT_FAILURE_MESSAGE = 'セット件数を取得できませんでした'
+
+function SetCount({ fromDate, toDate }: { fromDate: string; toDate: string }): ReactElement {
+  const loadCount = useCallback(() => trainingLogsApi.exportCount({ from_date: fromDate, to_date: toDate }), [fromDate, toDate])
+  const [count] = useLoadable(loadCount, COUNT_FAILURE_MESSAGE)
+
+  if (count.status === 'loading') return <Skeleton className="h-6 w-20" />
+  if (count.status === 'failed') return <span className="text-std-16B-170">取得できませんでした</span>
+  return <span className="text-std-16B-170">{count.value.count} セット</span>
 }
 
-function defaultFromDate(): string {
-  const date = new Date()
-  date.setMonth(date.getMonth() - 1)
-  return localDateString(date)
-}
-
-export function ExportPage() {
-  const [fromDate, setFromDate] = useState(defaultFromDate)
-  const [toDate, setToDate] = useState(() => localDateString(new Date()))
-  const [counted, setCounted] = useState<{ fromDate: string; toDate: string; count: number | null } | null>(null)
+export function ExportPage(): ReactElement {
+  const [fromDate, setFromDate] = useState(() => defaultExportFromDate(new Date()))
+  const [toDate, setToDate] = useState(() => toDateInputValue(new Date()))
   const [downloading, setDownloading] = useState(false)
 
   const rangeError = fromDate === '' || toDate === '' || fromDate > toDate
 
-  useEffect(() => {
-    if (rangeError) return
-    let cancelled = false
-    trainingLogsApi
-      .exportCount({ from_date: fromDate, to_date: toDate })
-      .then(({ count }) => !cancelled && setCounted({ fromDate, toDate, count }))
-      .catch(() => {
-        if (cancelled) return
-        toast.error('セット件数を取得できませんでした')
-        setCounted({ fromDate, toDate, count: null })
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [fromDate, toDate, rangeError])
-
-  async function downloadCsv() {
+  async function downloadCsv(): Promise<void> {
+    if (rangeError || downloading) return
     setDownloading(true)
     try {
       const blob = await trainingLogsApi.exportCsv({ from_date: fromDate, to_date: toDate })
@@ -55,26 +45,19 @@ export function ExportPage() {
     }
   }
 
-  const countLabel = (() => {
-    if (rangeError) return '-'
-    if (counted?.fromDate !== fromDate || counted.toDate !== toDate) return '取得中'
-    return counted.count === null ? '取得できませんでした' : `${counted.count} セット`
-  })()
-
   return (
     <div className="flex flex-col gap-4 p-4">
       <h1 className="text-std-24B-150">出力</h1>
-      <label className="flex flex-col gap-1">
-        <span className="text-std-16B-170">開始日</span>
+      <InputField label="開始日">
         <Input type="date" value={fromDate} onChange={(event) => setFromDate(event.target.value)} />
-      </label>
-      <label className="flex flex-col gap-1">
-        <span className="text-std-16B-170">終了日</span>
+      </InputField>
+      <InputField label="終了日">
         <Input type="date" value={toDate} onChange={(event) => setToDate(event.target.value)} />
-      </label>
-      {rangeError && <p className="text-error-2">開始日は終了日以前の日付を指定してください</p>}
-      <p className="text-std-16N-170">
-        セット件数<span className="ml-2 text-std-16B-170">{countLabel}</span>
+      </InputField>
+      {rangeError && <ErrorText>開始日は終了日以前の日付を指定してください</ErrorText>}
+      <p className="flex items-center gap-2 text-std-16N-170">
+        セット件数
+        {rangeError ? <span className="text-std-16B-170">-</span> : <SetCount fromDate={fromDate} toDate={toDate} />}
       </p>
       <Button size="lg" variant="solid-fill" aria-disabled={rangeError || downloading} onClick={downloadCsv} className="w-full">
         CSV をダウンロード

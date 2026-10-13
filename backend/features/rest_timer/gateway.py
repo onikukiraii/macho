@@ -1,6 +1,7 @@
 import json
 import logging
 
+from http_ece import ECEException
 from py_vapid import Vapid
 from pywebpush import WebPushException, webpush
 from requests import RequestException
@@ -9,7 +10,7 @@ from features.rest_timer.types import PushResult, PushSubscription
 
 logger = logging.getLogger(__name__)
 
-# 終了の通知は数分で意味を失うため、端末に届けられない状態が続いたら破棄させる
+# 終了の通知は遅れて届いても役に立たないため、端末に届けられないまま60秒経ったら破棄させる
 _TTL_SECONDS = 60
 _TIMEOUT_SECONDS = 10
 
@@ -20,6 +21,7 @@ class WebPushSender:
         self._vapid_subject = vapid_subject
 
     def send(self, subscription: PushSubscription, *, title: str, body: str) -> PushResult:
+        # 失敗は例外にせず結果として返す。呼び出し側は全端末へ順に送るため、1台の失敗でほかの端末への通知を止めない
         try:
             webpush(
                 subscription_info={
@@ -36,13 +38,12 @@ class WebPushSender:
         except WebPushException as e:
             if e.status_code in (404, 410):
                 return PushResult.expired
-            logger.warning(
+            logger.exception(
                 "Web Push を送信できませんでした: subscription_id=%d status=%s", subscription.id, e.status_code
             )
             return PushResult.failed
-        except RequestException as e:
-            logger.warning(
-                "Web Push を送信できませんでした: subscription_id=%d error=%s", subscription.id, type(e).__name__
-            )
+        # ValueError と ECEException は、登録済みの鍵で通知を暗号化できないときに出る
+        except RequestException, ValueError, ECEException:
+            logger.exception("Web Push を送信できませんでした: subscription_id=%d", subscription.id)
             return PushResult.failed
         return PushResult.delivered

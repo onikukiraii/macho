@@ -1,9 +1,12 @@
+from datetime import UTC, datetime, timedelta
+
 import pytest
 from sqlalchemy.orm import Session
 
-from common.errors import JobQueueUnavailable
+from common.errors import JobQueueUnavailable, NotFound
 from features.rest_timer.repository import DbRestTimerRepository
 from features.rest_timer.service import (
+    NOTIFICATION_EXPIRY_GRACE_SECONDS,
     extend_rest_timer,
     get_rest_timer,
     notify_rest_finished,
@@ -11,8 +14,9 @@ from features.rest_timer.service import (
     start_rest_timer,
     stop_rest_timer,
 )
-from features.rest_timer.types import PushResult
+from features.rest_timer.types import PushResult, RestTimer
 from tests.fakes import FakeJobQueue, FakePushSender
+from worker.tasks import notify_rest_finished_task
 
 IPHONE = "https://web.push.apple.com/iphone"
 ANDROID = "https://fcm.googleapis.com/fcm/send/android"
@@ -21,6 +25,19 @@ WINDOWS = "https://wns2-par02p.notify.windows.com/w/?token=windows"
 
 def _register(repo: DbRestTimerRepository, endpoint: str) -> None:
     register_push_subscription(repo, endpoint=endpoint, p256dh=f"p256dh-{endpoint}", auth=f"auth-{endpoint}")
+
+
+def _save_finished_timer(repo: DbRestTimerRepository) -> RestTimer:
+    now = datetime.now(UTC)
+    timer = RestTimer(
+        uid="0d6f2c1e-8a4b-4f3e-9c2d-1b5a7e9f0c3d",
+        started_at=now - timedelta(seconds=181),
+        ends_at=now - timedelta(seconds=1),
+        total_seconds=180,
+        next_set_label="ベンチプレス 2セット目",
+    )
+    repo.save_rest_timer(timer)
+    return timer
 
 
 def _run_job(repo: DbRestTimerRepository, push_sender: FakePushSender, job_queue: FakeJobQueue, index: int) -> None:
@@ -46,15 +63,39 @@ class TestRegisterPushSubscription:
 
 
 class TestStartRestTimer:
-    def test_開始した秒数後に実行され期限がそれより後のジョブを予約する(self, db_session: Session) -> None:
+    def test_開始した秒数後に実行されるジョブを予約する(self, db_session: Session) -> None:
         repo = DbRestTimerRepository(db_session)
         job_queue = FakeJobQueue()
 
         start_rest_timer(repo, job_queue, seconds=180, next_set_label="ベンチプレス 2セット目")
 
         assert job_queue.countdown_seconds == [180]
-        assert job_queue.expires_seconds[0] is not None
-        assert job_queue.expires_seconds[0] > 180
+
+    def test_予約するジョブは返した終了時刻に実行される(self, db_session: Session) -> None:
+        repo = DbRestTimerRepository(db_session)
+        job_queue = FakeJobQueue()
+        before = datetime.now(UTC)
+
+        timer = start_rest_timer(repo, job_queue, seconds=180, next_set_label="ベンチプレス 2セット目")
+
+        countdown = timedelta(seconds=job_queue.countdown_seconds[0] or 0)
+        assert before + countdown <= timer.ends_at <= datetime.now(UTC) + countdown
+
+    def test_予約するジョブの期限は実行予定より後で猶予の秒数を超えない(self, db_session: Session) -> None:
+        repo = DbRestTimerRepository(db_session)
+        job_queue = FakeJobQueue()
+
+        start_rest_timer(repo, job_queue, seconds=180, next_set_label="ベンチプレス 2セット目")
+
+        assert 180 < (job_queue.expires_seconds[0] or 0) <= 180 + NOTIFICATION_EXPIRY_GRACE_SECONDS
+
+    def test_予約するジョブは_worker_に登録した通知タスクを指す(self, db_session: Session) -> None:
+        repo = DbRestTimerRepository(db_session)
+        job_queue = FakeJobQueue()
+
+        start_rest_timer(repo, job_queue, seconds=180, next_set_label="ベンチプレス 2セット目")
+
+        assert [task_name for task_name, _ in job_queue.enqueued] == [notify_rest_finished_task.name]
 
     def test_動いている間にもう一度開始すると前のタイマーを置き換える(self, db_session: Session) -> None:
         repo = DbRestTimerRepository(db_session)
@@ -72,6 +113,51 @@ class TestStartRestTimer:
             start_rest_timer(repo, _FailingJobQueue(), seconds=180, next_set_label="ベンチプレス 2セット目")
 
         assert get_rest_timer(repo) is None
+
+
+class TestGetRestTimer:
+    def test_終了時刻を過ぎたタイマーは返さない(self, db_session: Session) -> None:
+        repo = DbRestTimerRepository(db_session)
+        _save_finished_timer(repo)
+
+        assert get_rest_timer(repo) is None
+
+
+class TestExtendRestTimer:
+    def test_延長すると終了時刻が延長した秒数だけ延びる(self, db_session: Session) -> None:
+        repo = DbRestTimerRepository(db_session)
+        started = start_rest_timer(repo, FakeJobQueue(), seconds=180, next_set_label="ベンチプレス 2セット目")
+
+        extend_rest_timer(repo, FakeJobQueue(), seconds=30)
+
+        timer = get_rest_timer(repo)
+        assert timer is not None
+        assert timer.ends_at - started.ends_at == timedelta(seconds=30)
+
+    def test_延長すると延びた終了時刻に実行されるジョブを予約する(self, db_session: Session) -> None:
+        repo = DbRestTimerRepository(db_session)
+        job_queue = FakeJobQueue()
+        start_rest_timer(repo, job_queue, seconds=180, next_set_label="ベンチプレス 2セット目")
+
+        extend_rest_timer(repo, job_queue, seconds=30)
+
+        assert job_queue.countdown_seconds[1] == 210
+
+    def test_終了時刻を過ぎたタイマーは延長できない(self, db_session: Session) -> None:
+        repo = DbRestTimerRepository(db_session)
+        _save_finished_timer(repo)
+
+        with pytest.raises(NotFound):
+            extend_rest_timer(repo, FakeJobQueue(), seconds=30)
+
+    def test_通知を予約できなければ延長を保存しない(self, db_session: Session) -> None:
+        repo = DbRestTimerRepository(db_session)
+        started = start_rest_timer(repo, FakeJobQueue(), seconds=180, next_set_label="ベンチプレス 2セット目")
+
+        with pytest.raises(JobQueueUnavailable):
+            extend_rest_timer(repo, _FailingJobQueue(), seconds=30)
+
+        assert get_rest_timer(repo) == started
 
 
 class TestNotifyRestFinished:
@@ -99,11 +185,22 @@ class TestNotifyRestFinished:
         extend_rest_timer(repo, job_queue, seconds=30)
 
         _run_job(repo, push_sender, job_queue, 0)
-        _run_job(repo, push_sender, job_queue, 1)
+        assert push_sender.sent == []
 
-        assert int(job_queue.enqueued[1][1]["ends_at"]) - int(job_queue.enqueued[0][1]["ends_at"]) == 30
-        assert 209 <= (job_queue.countdown_seconds[1] or 0) <= 210
+        _run_job(repo, push_sender, job_queue, 1)
         assert [endpoint for endpoint, _, _ in push_sender.sent] == [IPHONE]
+
+    def test_置き換えると前のタイマーの終了時刻では通知しない(self, db_session: Session) -> None:
+        repo = DbRestTimerRepository(db_session)
+        _register(repo, IPHONE)
+        job_queue = FakeJobQueue()
+        push_sender = FakePushSender()
+        start_rest_timer(repo, job_queue, seconds=180, next_set_label="ベンチプレス 2セット目")
+        start_rest_timer(repo, job_queue, seconds=90, next_set_label="ラットプルダウン 1セット目")
+
+        _run_job(repo, push_sender, job_queue, 0)
+
+        assert push_sender.sent == []
 
     def test_停止すると終了時刻になっても通知しない(self, db_session: Session) -> None:
         repo = DbRestTimerRepository(db_session)

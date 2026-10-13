@@ -3,6 +3,7 @@ import binascii
 import re
 from datetime import datetime
 
+from cryptography.hazmat.primitives.asymmetric import ec
 from pydantic import BaseModel, Field, field_validator
 
 # endpoint へは worker が POST するため、Web Push のサービス以外へ要求を送らせない
@@ -15,8 +16,8 @@ _BASE64URL_PATTERN = re.compile(r"[A-Za-z0-9_-]+={0,2}")
 
 class PushSubscriptionCreateParams(BaseModel):
     endpoint: str = Field(min_length=1, max_length=500)
-    p256dh: str
-    auth: str
+    p256dh: str = Field(max_length=88)
+    auth: str = Field(max_length=24)
 
     @field_validator("endpoint")
     @classmethod
@@ -33,12 +34,19 @@ class PushSubscriptionCreateParams(BaseModel):
     @field_validator("p256dh")
     @classmethod
     def _validate_p256dh(cls, v: str) -> str:
-        return _validate_base64url_length(v, byte_length=65)
+        decoded = _decode_base64url(v, byte_length=65)
+        # 曲線上に無い点は通知を送るときの暗号化で失敗するため、登録の時点で弾く
+        try:
+            ec.EllipticCurvePublicKey.from_encoded_point(ec.SECP256R1(), decoded)
+        except ValueError as e:
+            raise ValueError("p256dh が P-256 の公開鍵ではありません") from e
+        return v
 
     @field_validator("auth")
     @classmethod
     def _validate_auth(cls, v: str) -> str:
-        return _validate_base64url_length(v, byte_length=16)
+        _decode_base64url(v, byte_length=16)
+        return v
 
 
 class RestTimerStartParams(BaseModel):
@@ -57,7 +65,7 @@ class RestTimerResponse(BaseModel):
     next_set_label: str
 
 
-def _validate_base64url_length(value: str, *, byte_length: int) -> str:
+def _decode_base64url(value: str, *, byte_length: int) -> bytes:
     if _BASE64URL_PATTERN.fullmatch(value) is None:
         raise ValueError("base64url の文字列にしてください")
     unpadded = value.rstrip("=")
@@ -67,4 +75,4 @@ def _validate_base64url_length(value: str, *, byte_length: int) -> str:
         raise ValueError("base64url としてデコードできません") from e
     if len(decoded) != byte_length:
         raise ValueError(f"デコード後の長さが {byte_length} バイトではありません")
-    return value
+    return decoded

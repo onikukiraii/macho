@@ -1,0 +1,52 @@
+name: macho-prod
+
+x-app: &app
+  build:
+    context: .
+    dockerfile: docker/app.Dockerfile
+    args:
+      VITE_VAPID_PUBLIC_KEY: ${VITE_VAPID_PUBLIC_KEY:?}
+  env_file:
+    - .env
+  environment:
+    DATABASE_URL: mysql+pymysql://${MYSQL_USER:?}:${MYSQL_PASSWORD:?}@db:3306/${MYSQL_DATABASE:?}
+    CELERY_BROKER_URL: redis://redis:6379/0
+  restart: unless-stopped
+  depends_on:
+    db:
+      condition: service_healthy
+    redis:
+      condition: service_started
+
+services:
+  api:
+    <<: *app
+    ports:
+      - 127.0.0.1:37000:8000
+
+  worker:
+    <<: *app
+    command: ["uv", "run", "celery", "-A", "worker.app", "worker", "--loglevel=info"]
+
+  db:
+    image: mysql:8.0
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?}
+      MYSQL_USER: ${MYSQL_USER:?}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:?}
+    volumes:
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-u", "root", "-p${MYSQL_ROOT_PASSWORD}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+
+  redis:
+    image: redis:7
+    restart: unless-stopped
+
+volumes:
+  mysql-data:

@@ -8,7 +8,7 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "generate-api": "openapi-typescript http://localhost:8000/openapi.json -o src/api/schema.d.ts",
+    "generate-api": "openapi-typescript http://localhost:37000/openapi.json -o src/api/schema.d.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:ci": "vitest run --reporter=verbose"

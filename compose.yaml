@@ -4,7 +4,7 @@ services:
       context: ./frontend
       dockerfile: docker/Dockerfile
     ports:
-      - 5173:5173
+      - 37173:5173
     volumes:
       - ./frontend:/app
       - /app/node_modules
@@ -16,7 +16,7 @@ services:
       context: ./backend
       dockerfile: docker/Dockerfile
     ports:
-      - 8000:8000
+      - 37000:8000
     volumes:
       - ./backend:/app
       - /app/.venv
@@ -60,7 +60,7 @@ services:
       MYSQL_PASSWORD: ${MYSQL_PASSWORD}
       MYSQL_DATABASE: ${MYSQL_DATABASE}
     ports:
-      - 3309:3306
+      - 37306:3306
     volumes:
       - mysql-data:/var/lib/mysql
 
@@ -71,7 +71,7 @@ services:
       - plugins.security.disabled=true
       - OPENSEARCH_INITIAL_ADMIN_PASSWORD=Admin123!
     ports:
-      - 9205:9205
+      - 37205:9205
     volumes:
       - opensearch-data:/usr/share/opensearch/data
 
@@ -82,8 +82,8 @@ services:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
     ports:
-      - 9100:9000
-      - 9101:9101
+      - 37100:9000
+      - 37101:9101
     volumes:
       - minio-data:/data
 
@@ -103,7 +103,7 @@ services:
   redis:
     image: redis:7
     ports:
-      - 6399:6379
+      - 37379:6379
 
 volumes:
   mysql-data:

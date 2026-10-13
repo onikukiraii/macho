@@ -271,8 +271,8 @@ uv run mypy .
 
 サーバーを起動した後の確認手順:
 
-- Swagger UI: http://localhost:8000/docs
-- リクエスト送信テスト: `curl -X POST http://localhost:8000/products/ -H "Content-Type: application/json" -d '{"name":"Test","price":100}'`
+- Swagger UI: http://localhost:37000/docs
+- リクエスト送信テスト: `curl -X POST http://localhost:37000/products/ -H "Content-Type: application/json" -d '{"name":"Test","price":100}'`
 
 ---
 

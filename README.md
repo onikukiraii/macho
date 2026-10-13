@@ -63,7 +63,7 @@ cp frontend/.env.example frontend/.env
 `DATABASE_URL` についても、上記で設定した `MYSQL_USER`、`MYSQL_PASSWORD`、`MYSQL_DATABASE` の内容に合わせて更新してください:
 
 ```
-DATABASE_URL=mysql+pymysql://<MYSQL_USER>:<MYSQL_PASSWORD>@localhost:3309/<MYSQL_DATABASE>
+DATABASE_URL=mysql+pymysql://<MYSQL_USER>:<MYSQL_PASSWORD>@localhost:37306/<MYSQL_DATABASE>
 ```
 
 S3、LLM、非同期ジョブ関連の環境変数にはローカル開発用のデフォルト値があらかじめ設定されているため、初期状態のままで動作します。LLM を利用する `review` 機能（契約書レビュー）を試す場合のみ、`ANTHROPIC_API_KEY` を設定してください。
@@ -71,10 +71,10 @@ S3、LLM、非同期ジョブ関連の環境変数にはローカル開発用の
 | 変数 | デフォルト値 | 説明 |
 |------|-------------|------|
 | `S3_BUCKET` | `app-local` | オブジェクトストレージのバケット名 |
-| `S3_ENDPOINT_URL` | `http://localhost:9100` | ローカル環境では MinIO を使用。AWS 本番環境では空にして IAM ロール等に委ねます |
+| `S3_ENDPOINT_URL` | `http://localhost:37100` | ローカル環境では MinIO を使用。AWS 本番環境では空にして IAM ロール等に委ねます |
 | `ANTHROPIC_API_KEY` | （空） | `review` 機能を使用する際に必要 |
 | `LLM_MODEL` | `claude-opus-5` | 使用する LLM モデル名 |
-| `CELERY_BROKER_URL` | `redis://localhost:6399/0` | 非同期ジョブのブローカー URL |
+| `CELERY_BROKER_URL` | `redis://localhost:37379/0` | 非同期ジョブのブローカー URL |
 
 各環境変数の詳細については [backend/README.md](backend/README.md) を参照してください。プロジェクトで使用しない機能は、開発初期に最小限の手間で安全に削除できます（詳細は同ファイルの「不要な機能の削除」を参照）。
 
@@ -91,13 +91,13 @@ docker compose up -d
 > ```
 
 コンテナ起動後、以下のサービスへアクセス可能になります:
-- **Frontend**: http://localhost:5173
-- **API**: http://localhost:8000
+- **Frontend**: http://localhost:37173
+- **API**: http://localhost:37000
 - **Worker**: 非同期ジョブワーカー（Celery）
-- **MySQL**: localhost:3309
-- **OpenSearch**: localhost:9205
-- **MinIO**: http://localhost:9100 （管理コンソール: http://localhost:9101）
-- **Redis**: localhost:6399
+- **MySQL**: localhost:37306
+- **OpenSearch**: localhost:37205
+- **MinIO**: http://localhost:37100 （管理コンソール: http://localhost:37101）
+- **Redis**: localhost:37379
 
 ### 6. データベーステーブルの作成
 

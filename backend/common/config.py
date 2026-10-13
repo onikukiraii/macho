@@ -6,7 +6,7 @@ class Settings(BaseSettings):
 
     database_url: str
 
-    cors_origins: list[str] = ["http://localhost:5173"]
+    cors_origins: list[str] = ["http://localhost:37173"]
 
     s3_bucket: str = "app-local"
     s3_endpoint_url: str | None = None

@@ -22,18 +22,9 @@ class TestCreate:
 
 
 class TestListTrainingMaxes:
-    def test_手動で変更した行が履歴の先頭に並ぶ(self, db_session: Session) -> None:
+    def test_登録の順によらず効力の日時が新しい行が履歴の先頭に並ぶ(self, db_session: Session) -> None:
         repo = DbExerciseRepository(db_session)
         squat = repo.create(uid="squat", fields=SQUAT)
-        repo.add_training_max(
-            TrainingMax(
-                exercise_id=squat.id,
-                value=125.0,
-                effective_at=datetime(2026, 10, 5, 0, 0, tzinfo=UTC),
-                source=TrainingMaxSource.auto,
-                reason="週ごとの自動更新",
-            )
-        )
         repo.add_training_max(
             TrainingMax(
                 exercise_id=squat.id,
@@ -41,6 +32,15 @@ class TestListTrainingMaxes:
                 effective_at=datetime(2026, 10, 14, 0, 0, tzinfo=UTC),
                 source=TrainingMaxSource.manual,
                 reason="腰の違和感で2週間落とす",
+            )
+        )
+        repo.add_training_max(
+            TrainingMax(
+                exercise_id=squat.id,
+                value=125.0,
+                effective_at=datetime(2026, 10, 5, 0, 0, tzinfo=UTC),
+                source=TrainingMaxSource.auto,
+                reason="週ごとの自動更新",
             )
         )
 

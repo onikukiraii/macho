@@ -95,8 +95,14 @@ class TestSelectTrainingMax:
     @pytest.mark.parametrize(
         ("registered_at", "on", "expected"),
         [
+            pytest.param(datetime(2026, 10, 14, 0, 0, tzinfo=TOKYO), date(2026, 10, 14), 90.5, id="00:00_当日"),
+            pytest.param(datetime(2026, 10, 14, 8, 0, tzinfo=TOKYO), date(2026, 10, 14), 90.5, id="08:00_当日"),
+            pytest.param(datetime(2026, 10, 14, 8, 59, tzinfo=TOKYO), date(2026, 10, 14), 90.5, id="08:59_当日"),
             pytest.param(datetime(2026, 10, 14, 9, 0, tzinfo=TOKYO), date(2026, 10, 14), 90.5, id="09:00_当日"),
             pytest.param(datetime(2026, 10, 14, 23, 30, tzinfo=TOKYO), date(2026, 10, 14), 90.5, id="23:30_当日"),
+            pytest.param(datetime(2026, 10, 14, 0, 0, tzinfo=TOKYO), date(2026, 10, 13), 88.0, id="00:00_前日"),
+            pytest.param(datetime(2026, 10, 14, 8, 0, tzinfo=TOKYO), date(2026, 10, 13), 88.0, id="08:00_前日"),
+            pytest.param(datetime(2026, 10, 14, 8, 59, tzinfo=TOKYO), date(2026, 10, 13), 88.0, id="08:59_前日"),
             pytest.param(datetime(2026, 10, 14, 9, 0, tzinfo=TOKYO), date(2026, 10, 13), 88.0, id="09:00_前日"),
             pytest.param(datetime(2026, 10, 14, 23, 30, tzinfo=TOKYO), date(2026, 10, 13), 88.0, id="23:30_前日"),
         ],

@@ -45,6 +45,14 @@ def validate_derivation(
         raise BusinessRuleViolation("派生種目には換算係数を入力してください")
 
 
+def has_derived_exercises(exercise: Exercise, exercises: Sequence[Exercise]) -> bool:
+    return any(candidate.parent_id == exercise.id for candidate in exercises)
+
+
+def has_training_max_history(training_maxes: Sequence[TrainingMax], *, exercise_id: int) -> bool:
+    return len(list_training_max_history(training_maxes, exercise_id=exercise_id)) > 0
+
+
 def validate_training_max_owner(exercise: Exercise) -> None:
     if exercise.parent_id is not None:
         raise BusinessRuleViolation("派生種目にはトレーニングマックスを登録できません")

@@ -7,6 +7,8 @@ from common.config import settings
 from features.exercise._pure import (
     build_calculation_basis,
     build_exercise_fields,
+    has_derived_exercises,
+    has_training_max_history,
     list_training_max_history,
     resolve_exercise,
     validate_derivation,
@@ -83,8 +85,8 @@ def update_exercise(
     validate_derivation(
         exercise_id=exercise.id,
         parent=parent,
-        has_derived_exercises=any(candidate.parent_id == exercise.id for candidate in exercises),
-        has_training_max=any(training_max.exercise_id == exercise.id for training_max in training_maxes),
+        has_derived_exercises=has_derived_exercises(exercise, exercises),
+        has_training_max=has_training_max_history(training_maxes, exercise_id=exercise.id),
         coefficient=coefficient,
         e1rm_divisor=e1rm_divisor,
     )
@@ -100,7 +102,7 @@ def update_exercise(
     return resolve_exercise(updated, exercises=repo.list_all(), training_maxes=training_maxes)
 
 
-def change_training_max(repo: ExerciseRepository, *, uid: str, value: float, reason: str) -> ExerciseDetail:
+def add_training_max(repo: ExerciseRepository, *, uid: str, value: float, reason: str) -> ExerciseDetail:
     exercise = repo.get(uid)
     validate_training_max_owner(exercise)
     repo.add_training_max(

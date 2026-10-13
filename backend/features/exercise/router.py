@@ -90,7 +90,7 @@ def create_training_max(
     repo: Annotated[ExerciseRepository, Depends(get_exercise_repository)],
 ) -> ExerciseDetailResponse:
     try:
-        detail = service.change_training_max(repo, uid=uid, value=params.value, reason=params.reason)
+        detail = service.add_training_max(repo, uid=uid, value=params.value, reason=params.reason)
     except NotFound as e:
         raise HTTPException(404, str(e)) from e
     except BusinessRuleViolation as e:

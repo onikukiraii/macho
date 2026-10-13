@@ -1,8 +1,11 @@
 from datetime import datetime
+from typing import Annotated
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, StringConstraints
 
 from features.exercise.types import ExerciseKind, TrainingMaxSource
+
+_NO_CONTROL_OR_ZERO_WIDTH = r"^[^\x00-\x1f\x7f\u200b-\u200d\u2060\ufeff]+$"
 
 
 class ExerciseResponse(BaseModel):
@@ -31,7 +34,9 @@ class ExerciseDetailResponse(BaseModel):
 
 
 class ExerciseSaveParams(BaseModel):
-    name: str = Field(min_length=1, max_length=64)
+    name: Annotated[
+        str, StringConstraints(strip_whitespace=True, min_length=1, max_length=64, pattern=_NO_CONTROL_OR_ZERO_WIDTH)
+    ]
     parent_uid: str | None
     coefficient: float | None = Field(gt=0, le=2, allow_inf_nan=False)
     e1rm_divisor: float | None = Field(gt=0, le=100, allow_inf_nan=False)
@@ -41,4 +46,6 @@ class ExerciseSaveParams(BaseModel):
 
 class TrainingMaxCreateParams(BaseModel):
     value: float = Field(gt=0, le=500, allow_inf_nan=False)
-    reason: str = Field(min_length=1, max_length=255)
+    reason: Annotated[
+        str, StringConstraints(strip_whitespace=True, min_length=1, max_length=255, pattern=_NO_CONTROL_OR_ZERO_WIDTH)
+    ]

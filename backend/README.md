@@ -49,6 +49,6 @@ API レスポンスは連番の `id` を返さず、UUID の `uid` を返しま�
 | `VAPID_PRIVATE_KEY` | Web Push の VAPID 秘密鍵 |
 | `VAPID_SUBJECT` | Web Push の VAPID subject。`mailto:` か `https:` の URL |
 | `APP_TIMEZONE` | 業務日付を決めるタイムゾーン。既定は `Asia/Tokyo` |
-| `FRONTEND_DIST_DIR` | 画面のビルド成果物のディレクトリ。設定すると api が画面も配信し、`/docs` と OpenAPI を切る |
+| `FRONTEND_DIST_DIR` | 画面のビルド成果物のディレクトリ。設定すると api が画面も配信し、`/docs` と OpenAPI を無効にする |
 | `CELERY_BROKER_URL` | 非同期ジョブのブローカー URL（Redis） |
 | `CORS_ORIGINS` | CORS で許可するオリジン（JSON 配列形式で指定） |

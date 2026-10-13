@@ -52,7 +52,7 @@ frontend/src/                React 19 + TypeScript + Vite + Tailwind CSS v4
 | `_pure.py` | 引数のみから結果を算出する純粋関数 | 引数以外の外部リソースや環境から取得する値（現在時刻や乱数など） |
 | `protocol.py` | この機能が外部に要求するインターフェース | 具象実装 |
 | `repository.py` | `Session` を受け取るクラス、DB 操作、entity から `types.py` への変換 | `protocol.py` の import、ビジネスロジック、他機能の entity の参照 |
-| `gateway.py` | この機能だけで使う外部連携の具象実装、外部ライブラリ例外からドメイン例外への変換 | 複数機能で共有する処理（`common/gateway/` へ配置する） |
+| `gateway.py` | この機能だけで使う外部連携の具象実装、外部ライブラリ例外からドメイン例外への変換 | 複数機能で共有する処理。`common/gateway/` へ配置する |
 | `types.py` | ドメインモデルの型定義 | SQLAlchemy の `Mapped`（テーブル定義は `common/db/entities/` に置く） |
 | `dto.py` | リクエストとレスポンスの Pydantic モデル | ドメインモデルの型定義 |
 | `prompts.py` | プロンプトのテンプレート文字列のみ | `if` などの分岐ロジック（文字列の組み立ては `_pure.py` で行う） |

@@ -292,7 +292,7 @@ def notify_rest_finished(repo: RestTimerRepository, sender: PushSender, *, uid: 
         sender.send(subscription, title="レスト終了", body="次のセットを始めましょう")
 ```
 
-外部サービスを呼び出す具象実装クラス内では、外部ライブラリ固有の例外（例: `WebPushSender` が呼ぶ pywebpush の `WebPushException` など）をキャッチし、プロジェクト共通のドメイン例外に変換して再送出してください。例外の変換を怠ると、`service.py` などの上位レイヤーまで外部ライブラリ固有の例外が漏れ出し、上位レイヤーが外部ライブラリに依存してしまう原因になります。
+外部サービスを呼び出す具象実装クラス内では、外部ライブラリ固有の例外をキャッチし、プロジェクト共通のドメイン例外に変換して再送出してください。たとえば `WebPushSender` が呼ぶ pywebpush は `WebPushException` を送出します。例外の変換を怠ると、`service.py` などの上位レイヤーまで外部ライブラリ固有の例外が漏れ出し、上位レイヤーが外部ライブラリに依存してしまう原因になります。
 
 ### 非同期ジョブを利用する場合
 

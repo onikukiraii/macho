@@ -46,11 +46,11 @@ mypy は strict 相当の設定で動作している。型チェックを通す�
 ## router
 
 ```python
-router = APIRouter(prefix="/reviews", tags=["reviews"])
+router = APIRouter(prefix="/exercises", tags=["exercises"])
 
 
 @router.get("/{uid}")
-def get_review(uid: str, repo: Annotated[ReviewRepository, Depends(get_review_repository)]) -> ReviewResponse:
+def get_exercise(uid: str, repo: Annotated[ExerciseRepository, Depends(get_exercise_repository)]) -> ExerciseDetailResponse:
 ```
 
 - 引数の型注釈には `protocol.py` で定義したインターフェースを指定し、`Depends` には `dependencies.py` のプロバイダ関数を渡す。
@@ -63,7 +63,7 @@ def get_review(uid: str, repo: Annotated[ReviewRepository, Depends(get_review_re
 
 - DTO の命名規則は、リクエスト用を `XxxCreateParams`（または `XxxUpdateParams` など）、レスポンス用を `XxxResponse` とする。
 - リクエスト入力のフォーマットや値の範囲チェックは Pydantic の `Field` などで行う。同一のバリデーションを `_pure.py` で重複して記述しない。
-- API レスポンスには内部の連番 `id` を含めず、UUID である `uid` を返却する。`id` は内部的な自動採番キーであり、外部から意味を特定しにくいためである。なお、`user` と `invoice` が `id` を返却しているのは後方互換性のためであり、新規に実装する機能では `review` の設計に倣うこと。
+- API レスポンスには内部の連番 `id` を含めず、UUID である `uid` を返却する。`id` は内部的な自動採番キーであり、外部から意味を特定しにくいためである。新規に実装する機能では `exercise` の設計に倣うこと。
 
 ## エラー
 
@@ -75,8 +75,7 @@ def get_review(uid: str, repo: Annotated[ReviewRepository, Depends(get_review_re
 | `Forbidden` | 403 |
 | `BusinessRuleViolation` | 400 |
 | `Conflict` | 409 |
-| `LLMError(retryable=True)` | 503 |
-| `LLMError(retryable=False)` | 502 |
+| `JobQueueUnavailable` | 503 |
 
 - `service.py` で `HTTPException` を送出してはならない。Celery ワーカーなど非 HTTP 環境から再利用できなくなるためである。
 - 外部ライブラリ固有の例外は具象実装内でキャッチし、ドメイン例外に変換して再送出する。`ClientError` や `IntegrityError` などの例外が上位層に漏れ出すと、上位層が外部ライブラリに依存してしまう。

@@ -8,46 +8,47 @@ FastAPI + SQLAlchemy + Alembic / Python 3.14 / パッケージ管理: uv
 
 ## 提供 API 一覧
 
+すべてのパスは `/api` で始まります。
+
 | メソッド | パス | 説明 |
 |---------|------|------|
-| GET | `/users/` | ユーザー一覧の取得 |
-| POST | `/users/` | ユーザーの作成 |
-| GET | `/invoices/` | 請求書一覧の取得 |
-| POST | `/invoices/` | 請求書の作成（下書き） |
-| POST | `/invoices/{id}/issue` | 請求書の発行（PDF を生成して S3 に保存） |
-| POST | `/invoices/{id}/issue-async` | 請求書発行ジョブのエンキュー（非同期処理） |
-| GET | `/invoices/{id}/pdf-url` | PDF 取得用の署名付き URL を発行 |
-| GET | `/reviews/` | レビュー一覧の取得 |
-| POST | `/reviews/` | 契約書レビューの実行（LLM を呼び出し） |
-| GET | `/reviews/{uid}` | 特定レビューの詳細取得 |
+| GET | `/api/exercises` | 種目の一覧の取得 |
+| GET | `/api/exercises/{uid}` | 種目の詳細とトレーニングマックスの履歴の取得 |
+| POST | `/api/exercises` | 種目の作成 |
+| PUT | `/api/exercises/{uid}` | 種目の更新 |
+| POST | `/api/exercises/{uid}/training-maxes` | トレーニングマックスの手動の変更 |
+| GET | `/api/training-logs` | 期間を指定したトレーニング記録の一覧の取得 |
+| GET | `/api/training-logs/latest` | 直近のトレーニング記録の取得 |
+| GET | `/api/training-logs/day-options` | 記録を開始する Day の選択肢の取得 |
+| POST | `/api/training-logs` | トレーニング記録の作成。前の週のトレーニングマックスを評価する |
+| GET | `/api/training-logs/{uid}` | トレーニング記録の詳細の取得 |
+| PATCH | `/api/training-logs/{uid}` | トレーニング記録のメモの更新 |
+| DELETE | `/api/training-logs/{uid}` | トレーニング記録の削除 |
+| POST | `/api/training-logs/{uid}/exercises` | 実施種目の追加 |
+| PUT | `/api/training-logs/exercises/{performed_uid}` | 実施種目の差し替えとメモの更新 |
+| PUT | `/api/training-logs/exercises/{performed_uid}/sets` | 実施種目のセットの置き換え |
+| GET | `/api/training-logs/by-exercise/{exercise_uid}` | 種目ごとの履歴の取得 |
+| GET | `/api/training-logs/program-progress` | 進行中のプログラムの Day ごとの消化状況の取得 |
+| GET | `/api/training-logs/export` | 期間を指定した CSV の出力 |
+| GET | `/api/training-logs/export-count` | 出力されるセット件数の取得 |
+| POST | `/api/rest-timer/push-subscriptions` | Web Push の購読の登録 |
+| GET | `/api/rest-timer` | 動いているレストタイマーの取得 |
+| POST | `/api/rest-timer` | レストタイマーの開始 |
+| POST | `/api/rest-timer/extend` | レストタイマーの延長 |
+| DELETE | `/api/rest-timer` | レストタイマーの停止 |
 
-※ `user` と `invoice` は初期実装例として連番の `id` を返却していますが、新規に作成する機能では `review` のように UUID（`uid`）を使用することを推奨します。
+API レスポンスは連番の `id` を返さず、UUID の `uid` を返します。
 
 ## 環境変数
 
-`.env.template` をコピーして `.env` を作成します。必須の設定項目は `DATABASE_URL` のみで、その他の項目にはローカル開発用のデフォルト値があらかじめ設定されています。
+`.env.template` をコピーして `.env` を作成します。必須の設定項目は `DATABASE_URL`、`VAPID_PRIVATE_KEY`、`VAPID_SUBJECT` で、その他の項目にはローカル開発用のデフォルト値があらかじめ設定されています。
 
 | 変数 | 用途 |
 |------|------|
 | `DATABASE_URL` | MySQL 接続情報 |
-| `S3_BUCKET` `S3_ENDPOINT_URL` `S3_REGION` | オブジェクトストレージ設定（ローカル環境では MinIO を使用） |
-| `AWS_ACCESS_KEY_ID` `AWS_SECRET_ACCESS_KEY` | boto3 が使用する AWS 認証情報（本番環境では IAM ロール等を利用するため空で問題ありません） |
-| `ANTHROPIC_API_KEY` | LLM 連携用 API キー（`review` 機能を使用する場合のみ必須） |
-| `LLM_MODEL` `LLM_MAX_TOKENS` | 使用する LLM モデルおよび最大トークン数の設定 |
+| `VAPID_PRIVATE_KEY` | Web Push の VAPID 秘密鍵 |
+| `VAPID_SUBJECT` | Web Push の VAPID subject。`mailto:` か `https:` の URL |
+| `APP_TIMEZONE` | 業務日付を決めるタイムゾーン。既定は `Asia/Tokyo` |
+| `FRONTEND_DIST_DIR` | 画面のビルド成果物のディレクトリ。設定すると api が画面も配信し、`/docs` と OpenAPI を切る |
 | `CELERY_BROKER_URL` | 非同期ジョブのブローカー URL（Redis） |
 | `CORS_ORIGINS` | CORS で許可するオリジン（JSON 配列形式で指定） |
-
-## 不要な機能の削除
-
-本テンプレートにはすべてのサンプル機能が含まれています。プロジェクトで使用しない機能は、開発初期の段階で削除することを推奨します（独自コードを追加する前であれば、最小限の手間で安全に削除できます）。
-
-| 削除する機能 | あわせて削除するもの |
-|-------------|---------------------|
-| `features/invoice/` | `common/db/entities/invoice.py` および `__init__.py` 内の該当行、`tests/invoice/`、`dependencies.py` 内の `get_invoice_repository` と `get_pdf_renderer`、`main.py` のルーター読み込み、`worker/tasks.py` 内のタスク、`pyproject.toml` の `reportlab` 依存関係 |
-| `features/review/` | `common/db/entities/review.py` および `__init__.py` 内の該当行、`tests/review/`、`dependencies.py` 内の `get_review_repository` と `get_llm`、`common/gateway/llm_claude.py`、`common/gateway/protocol.py` の `LLM` 定義、`pyproject.toml` の `anthropic` 依存関係 |
-| `worker/` | `common/gateway/job_queue_celery.py`、`common/gateway/protocol.py` の `JobQueue` 定義、`dependencies.py` の `get_job_queue`、`compose.yaml` の `worker` および `redis` サービス、`pyproject.toml` の `celery` 依存関係 |
-| S3 を使用しない場合 | `common/gateway/storage_s3.py`、`common/gateway/protocol.py` の `Storage` 定義、`dependencies.py` の `get_storage`、`compose.yaml` の `minio` および `minio-init` サービス、`pyproject.toml` の `boto3` 依存関係 |
-
-不要な機能を削除した後は、`uv run pytest` と `uv run mypy .` を実行して削除漏れや型エラーがないか確認してください。
-
-`alembic/versions/` ディレクトリは初期状態では空になっています。不要な機能の削除が完了した後に `mise run migrate-gen "initial"` を実行することで、必要な entity のみを含んだ初期マイグレーションファイルを生成できます。先にマイグレーションファイルを生成してしまうと、削除予定のテーブル定義がマイグレーション履歴に含まれてしまうため注意してください。

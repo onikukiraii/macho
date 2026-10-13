@@ -285,38 +285,29 @@ uv run mypy .
 service には具象クラスではなく、Protocol のみを渡すようにします。
 
 ```python
-def publish_product(repo: ProductRepository, storage: Storage, *, uid: str) -> Product:
-    product = repo.get(uid)
-    storage.put(product_image_key(uid), body, "image/png")
-    return repo.save_published(product)
+def notify_rest_finished(repo: RestTimerRepository, sender: PushSender, *, uid: str, ends_at: datetime) -> None:
+    if not repo.delete_by_uid_and_ends_at(uid, ends_at):
+        return
+    for subscription in repo.list_subscriptions():
+        sender.send(subscription, title="レスト終了", body="次のセットを始めましょう")
 ```
 
-外部サービスを呼び出す具象実装クラス内では、外部ライブラリ固有の例外（例: AWS SDK の `ClientError` など）をキャッチし、プロジェクト共通のドメイン例外に変換して再送出してください。例外の変換を怠ると、`service.py` などの上位レイヤーまで外部ライブラリ固有の例外が漏れ出し、上位レイヤーが外部ライブラリに依存してしまう原因になります。
-
-### LLM を利用する場合
-
-関心事に応じて以下の5つに責務を分割し、適切な場所に配置します。
-
-| 責務 | 配置場所 |
-|------|--------|
-| インターフェース定義 (Protocol) | `common/gateway/protocol.py` |
-| クライアント・モデルID・リトライ制御 | `common/gateway/llm_claude.py` |
-| プロンプトのテンプレート文言 | `features/<機能>/prompts.py` |
-| プロンプト文字列の組み立て | `features/<機能>/_pure.py` |
-| 出力データの型定義 | `features/<機能>/types.py` |
-
-実装例として `review` 機能を参照してください。ログ追跡用の `trace_id` には、検索キーとして利用可能な UUID（`uid`）を指定します。内部的な連番 `id` を使用してしまうと、外部クライアントからの問い合わせや障害調査時にログから該当のトレースを特定できなくなるためです。
+外部サービスを呼び出す具象実装クラス内では、外部ライブラリ固有の例外（例: `WebPushSender` が呼ぶ pywebpush の `WebPushException` など）をキャッチし、プロジェクト共通のドメイン例外に変換して再送出してください。例外の変換を怠ると、`service.py` などの上位レイヤーまで外部ライブラリ固有の例外が漏れ出し、上位レイヤーが外部ライブラリに依存してしまう原因になります。
 
 ### 非同期ジョブを利用する場合
 
 呼び出しの流れは `router` → `service` → `JobQueue.enqueue` の順序で行います。非同期タスクの実装本体は `worker/tasks.py` に定義し、`dependencies.py` の関数を呼び出して具象インスタンスを組み立てて実行します。
 
 ```python
-@celery_app.task(name=service.ISSUE_TASK_NAME)
-def issue_invoice_task(invoice_id: int) -> None:
+@celery_app.task(name=service.NOTIFY_TASK_NAME)
+def notify_rest_finished_task(timer_uid: str, ends_at: str) -> None:
     with SessionLocal() as session:
-        service.issue_invoice(get_invoice_repository(session), get_storage(), get_pdf_renderer(), invoice_id=invoice_id)
+        service.notify_rest_finished(
+            get_rest_timer_repository(session), get_push_sender(), uid=timer_uid, ends_at=datetime.fromisoformat(ends_at)
+        )
 ```
+
+指定した秒数のあとに実行する場合は、`JobQueue.enqueue` の `countdown_seconds` に秒数を渡します。
 
 タスクに渡す引数には、ID や文字列などのプリミティブ型のみを使用してください。SQLAlchemy などの ORM オブジェクトを直接渡すと、プロセス間通信時のシリアライズ失敗や、ワーカー側での DB セッション切断によりエラーが発生します。
 
@@ -327,5 +318,5 @@ def issue_invoice_task(invoice_id: int) -> None:
 リレーション（関連テーブル）を持つ entity の一覧を取得する際は、N+1 問題を防ぐために `selectinload` などを指定して関連レコードを一括で先読み（Eager loading）します。
 
 ```python
-statement = select(InvoiceRow).options(selectinload(InvoiceRow.lines)).order_by(InvoiceRow.id)
+statement = select(TrainingLogRow).options(selectinload(TrainingLogRow.exercises)).order_by(TrainingLogRow.id)
 ```

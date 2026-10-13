@@ -6,9 +6,7 @@ FastAPI と React で構築するフルスタック Web アプリケーション
 
 - **Backend**: FastAPI, SQLAlchemy, Alembic
 - **Frontend**: React 19, TypeScript, Vite 8, Tailwind CSS v4, デジタル庁デザインシステム, shadcn/ui
-- **Database**: MySQL 8.0, OpenSearch
-- **Storage**: S3 / MinIO
-- **LLM**: Claude (Anthropic SDK)
+- **Database**: MySQL 8.0
 - **Job Queue**: Celery + Redis
 - **API 連携**: openapi-typescript + openapi-fetch（型安全な API クライアント）
 - **ツール**: uv, mise, Ruff, mypy, ESLint, Vitest
@@ -66,17 +64,16 @@ cp frontend/.env.example frontend/.env
 DATABASE_URL=mysql+pymysql://<MYSQL_USER>:<MYSQL_PASSWORD>@localhost:37306/<MYSQL_DATABASE>
 ```
 
-S3、LLM、非同期ジョブ関連の環境変数にはローカル開発用のデフォルト値があらかじめ設定されているため、初期状態のままで動作します。LLM を利用する `review` 機能（契約書レビュー）を試す場合のみ、`ANTHROPIC_API_KEY` を設定してください。
+非同期ジョブ関連の環境変数にはローカル開発用のデフォルト値があらかじめ設定されているため、初期状態のままで動作します。Web Push の `VAPID_PRIVATE_KEY` と `VAPID_SUBJECT` は必須で、`.env.template` のダミーを実際の鍵に置き換えてください。
 
 | 変数 | デフォルト値 | 説明 |
 |------|-------------|------|
-| `S3_BUCKET` | `app-local` | オブジェクトストレージのバケット名 |
-| `S3_ENDPOINT_URL` | `http://localhost:37100` | ローカル環境では MinIO を使用。AWS 本番環境では空にして IAM ロール等に委ねます |
-| `ANTHROPIC_API_KEY` | （空） | `review` 機能を使用する際に必要 |
-| `LLM_MODEL` | `claude-opus-5` | 使用する LLM モデル名 |
+| `VAPID_PRIVATE_KEY` | （必須） | Web Push の VAPID 秘密鍵 |
+| `VAPID_SUBJECT` | （必須） | Web Push の VAPID subject |
+| `APP_TIMEZONE` | `Asia/Tokyo` | 業務日付を決めるタイムゾーン |
 | `CELERY_BROKER_URL` | `redis://localhost:37379/0` | 非同期ジョブのブローカー URL |
 
-各環境変数の詳細については [backend/README.md](backend/README.md) を参照してください。プロジェクトで使用しない機能は、開発初期に最小限の手間で安全に削除できます（詳細は同ファイルの「不要な機能の削除」を参照）。
+各環境変数の詳細については [backend/README.md](backend/README.md) を参照してください。
 
 ### 5. Docker Compose でコンテナを起動
 
@@ -95,20 +92,15 @@ docker compose up -d
 - **API**: http://localhost:37000
 - **Worker**: 非同期ジョブワーカー（Celery）
 - **MySQL**: localhost:37306
-- **OpenSearch**: localhost:37205
-- **MinIO**: http://localhost:37100 （管理コンソール: http://localhost:37101）
 - **Redis**: localhost:37379
 
 ### 6. データベーステーブルの作成
 
-`alembic/versions/` ディレクトリは初期状態では空になっています。テーブル定義自体は `common/db/entities/` に配置されているため、不要な機能を先に削除した上で初期マイグレーションファイルを生成してください。削除手順および対象ファイル一覧については、[backend/README.md](backend/README.md) の「不要な機能の削除」を参照してください。
+初回のマイグレーションは `backend/alembic/versions/` にあります。テーブルを作成します。
 
 ```bash
-mise run migrate-gen "initial"
 mise run migrate
 ```
-
-生成されたマイグレーションファイルの内容を目視で確認し、意図しないテーブル作成や変更が含まれていないことをチェックしてください。
 
 ### 7. API 型定義の生成
 
@@ -200,11 +192,13 @@ mise tasks  # 利用可能なタスク一覧を表示
 │   ├── main.py         # アプリケーションのエントリーポイント
 │   ├── dependencies.py # コンポジションルート（具象クラスを注入する唯一の場所）
 │   ├── features/       # 機能ディレクトリの置き場（1機能 = 1ディレクトリ）
-│   │   ├── user/       # 機能実装の最小サンプル
-│   │   ├── invoice/    # DB・S3・非同期ジョブを利用するサンプル
-│   │   └── review/     # LLM を利用するサンプル
+│   │   ├── exercise/   # 種目とトレーニングマックス
+│   │   ├── program/    # プログラム
+│   │   ├── training_log/ # トレーニング記録
+│   │   └── rest_timer/ # レストタイマーと Web Push の通知
 │   ├── common/         # 共通処理（entities / gateway / errors / config）
 │   ├── worker/         # Celery アプリケーションと非同期タスク
+│   ├── scripts/        # 1回きりの実行スクリプト。移行
 │   ├── alembic/        # データベースマイグレーション
 │   ├── docker/         # Dockerfile
 │   └── tests/          # 機能ディレクトリに対応するテストコード
@@ -226,7 +220,7 @@ mise tasks  # 利用可能なタスク一覧を表示
 └── .env.template
 ```
 
-バックエンドの API 一覧・環境変数・不要な機能の削除手順は [backend/README.md](backend/README.md) にあります。
+バックエンドの API 一覧と環境変数は [backend/README.md](backend/README.md) にあります。
 
 ### なぜ機能ごとに各レイヤーのファイルを持つのか
 

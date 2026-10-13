@@ -33,11 +33,11 @@ paths:
 
 ## Fake を使い、モックライブラリを使わない
 
-外部サービスとの境界はすべて Protocol で抽象化されているため、`unittest.mock` や moto、MinIO などの外部モック環境は不要である。テストには `tests/fakes.py` で定義した Fake 実装を注入する。
+外部サービスとの境界はすべて Protocol で抽象化されているため、`unittest.mock` や moto などの外部モック環境は不要である。テストには `tests/fakes.py` で定義した Fake 実装を注入する。
 
 - Fake 実装は `tests/fakes.py` に集約し、各テストファイルで個別に再実装しない。
-- Fake 実装には検証に必要な状態を持たせる。`FakeStorage.objects` や `FakeLLM.prompts` を直接アサートすることで、「意図した引数が正しく渡されたか」を外部から検証できる。
-- 特定のテストでのみ使用する異常系用の Fake は、そのテストファイルの末尾に `_FailingLLM` のようなプライベートクラスとして定義する。`fakes.py` に異常系実装を並べると、共通で利用する正常系 Fake の見通しが悪くなるためである。
+- Fake 実装には検証に必要な状態を持たせる。`FakeJobQueue.enqueued` や `FakePushSender` が記録した送信を直接アサートすることで、「意図した引数が正しく渡されたか」を外部から検証できる。
+- 特定のテストでのみ使用する異常系用の Fake は、そのテストファイルの末尾に `_FailingPushSender` のようなプライベートクラスとして定義する。`fakes.py` に異常系実装を並べると、共通で利用する正常系 Fake の見通しが悪くなるためである。
 - プロダクションコードの内部ロジックを `mocker.patch` で差し替えてはならない。内部を差し替えたくなった場合は、その境界が Protocol で適切に抽象化されていないサインである。
 
 ## fixture
@@ -46,7 +46,6 @@ paths:
 
 - `db_session`: テストケースごとに初期化される SQLite インメモリ DB のセッション。外部キー制約は有効化されている。
 - `client`: `get_session` を `db_session` に差し替えた FastAPI の `TestClient`。
-- `create_user`: テスト用の `UserRow` を作成するファクトリ関数。
 
 `dependency_overrides` を変更した場合は、テスト終了後に必ず元の状態へ復元する。fixture の `yield` 直後、または `finally` 節で `app.dependency_overrides.pop()` を実行する。`app` インスタンスはモジュールスコープで共有されるため、設定が残ったままだと後続のテストに影響を及ぼすためである。
 

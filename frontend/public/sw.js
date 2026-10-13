@@ -1,5 +1,24 @@
+const DEFAULT_TITLE = 'レスト終了'
+
+self.addEventListener('install', () => {
+  self.skipWaiting()
+})
+
+self.addEventListener('activate', (event) => {
+  event.waitUntil(self.clients.claim())
+})
+
+// iOS は push を受けて通知を出さないと購読を取り消すため、data が無いときや JSON でないときも通知を出す
+function readPushMessage(data) {
+  try {
+    return data.json()
+  } catch {
+    return { title: DEFAULT_TITLE, body: '' }
+  }
+}
+
 self.addEventListener('push', (event) => {
-  const { title, body } = event.data.json()
+  const { title, body } = readPushMessage(event.data)
   event.waitUntil(self.registration.showNotification(title, { body, icon: '/icons/icon-192.png' }))
 })
 

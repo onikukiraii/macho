@@ -1,6 +1,8 @@
+import { useState } from 'react'
 import { BottomSheet } from '@/components/BottomSheet'
 import { Button } from '@/components/dads/Button'
 import type { RestTimerControls } from '@/hooks/useRestTimer'
+import { formatRestTime, remainingRestRatio } from '@/lib/restTimer'
 
 type RestTimerSheetProps = {
   open: boolean
@@ -13,6 +15,17 @@ const CIRCLE_LENGTH = 2 * Math.PI * CIRCLE_RADIUS
 
 export function RestTimerSheet({ open, onClose, restTimer }: RestTimerSheetProps) {
   const { running, notificationStatus, extendRestTimer, stopRestTimer } = restTimer
+  const [extendPending, setExtendPending] = useState(false)
+
+  async function extendRestTimerOnce() {
+    setExtendPending(true)
+    await extendRestTimer()
+    setExtendPending(false)
+  }
+
+  async function stopRestTimerAndClose() {
+    if (await stopRestTimer()) onClose()
+  }
 
   return (
     <BottomSheet open={open && running !== null} onClose={onClose} title="レスト">
@@ -30,7 +43,7 @@ export function RestTimerSheet({ open, onClose, restTimer }: RestTimerSheetProps
                 strokeWidth="6"
                 strokeLinecap="round"
                 strokeDasharray={CIRCLE_LENGTH}
-                strokeDashoffset={CIRCLE_LENGTH * (1 - running.remainingSeconds / running.totalSeconds)}
+                strokeDashoffset={CIRCLE_LENGTH * (1 - remainingRestRatio(running.remainingSeconds, running.totalSeconds))}
                 className="stroke-primary"
               />
             </svg>
@@ -39,23 +52,20 @@ export function RestTimerSheet({ open, onClose, restTimer }: RestTimerSheetProps
               aria-label="残り時間"
               className="absolute inset-0 flex items-center justify-center text-std-45B-140 tabular-nums"
             >
-              {Math.floor(running.remainingSeconds / 60)}:{String(running.remainingSeconds % 60).padStart(2, '0')}
+              {formatRestTime(running.remainingSeconds)}
             </p>
           </div>
           {notificationStatus === 'disabled' && (
             <p className="text-dns-14N-130 text-muted-foreground">通知はオフです。終了の通知は届きません</p>
           )}
           <div className="grid w-full grid-cols-2 gap-4">
-            <Button size="lg" variant="outline" onClick={() => void extendRestTimer()}>
+            <Button size="lg" variant="outline" disabled={extendPending} onClick={() => void extendRestTimerOnce()}>
               +30秒
             </Button>
             <Button
               size="lg"
               variant="solid-fill"
-              onClick={() => {
-                void stopRestTimer()
-                onClose()
-              }}
+              onClick={() => void stopRestTimerAndClose()}
             >
               停止
             </Button>

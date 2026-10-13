@@ -1,4 +1,5 @@
 import { Timer } from 'lucide-react'
+import { formatRestTime } from '@/lib/restTimer'
 
 type RestTimerBadgeProps = {
   remainingSeconds: number
@@ -15,7 +16,7 @@ export function RestTimerBadge({ remainingSeconds, onOpen }: RestTimerBadgeProps
           className="flex min-h-14 w-full items-center justify-center gap-2 rounded-16 bg-primary text-std-18B-160 text-primary-foreground tabular-nums shadow-lg"
         >
           <Timer aria-hidden className="size-6" />
-          レスト {Math.floor(remainingSeconds / 60)}:{String(remainingSeconds % 60).padStart(2, '0')}
+          レスト {formatRestTime(remainingSeconds)}
         </button>
       </div>
     </div>

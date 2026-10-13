@@ -10,6 +10,7 @@ export type ExerciseDetail = Schemas['ExerciseDetailResponse']
 export type ExerciseHistoryEntry = Schemas['ExerciseHistoryEntryResponse']
 export type ProgramWeekProgress = Schemas['ProgramWeekProgressResponse']
 export type ProgramProgress = Schemas['ProgramProgressResponse']
+export type RestTimerResponse = Schemas['RestTimerResponse']
 
 export const EXERCISE_KIND_LABEL: Record<ExerciseKind, string> = {
   training_max: 'トレーニングマックスを持つ種目',

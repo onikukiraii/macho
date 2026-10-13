@@ -73,7 +73,7 @@ docker compose -f compose.prod.yaml up -d --build
 
 マイグレーションは db が healthy になってから実行される。
 
-初回の移行が途中で失敗したときに限り、ボリュームを消して手順 2 からやり直せる。記録がある DB では `down -v` を実行しない。記録が消える。
+`down -v` を実行してよいのは、手順 3 の KINNIK の記録の移行が完了する前に限る。初回のマイグレーションが失敗したときも、この条件に含まれる。ボリュームを消して手順 2 からやり直せる。移行の完了後は記録がある DB なので実行しない。記録が消える。
 
 ```bash
 docker compose -f compose.prod.yaml down -v
@@ -91,13 +91,18 @@ docker compose -f compose.prod.yaml run --rm -v ./data:/data:ro api uv run pytho
 
 ### 4. 2回目以降のデプロイ
 
-記録が貯まった DB を変更するため、ダンプと `.env` の退避を先に置く。どちらもリポジトリの外へ置く。
+記録が貯まった DB を変更するため、ダンプ、`.env`、現在のコミットの退避を先に置く。すべてリポジトリの外へ置き、同じ時刻付きの名前で揃える。
 
 ```bash
 mkdir -m 700 -p ~/backup
-(umask 077; docker compose -f compose.prod.yaml exec -T db sh -c 'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" mysqldump -uroot --single-transaction "$MYSQL_DATABASE"' > ~/backup/macho-$(date +%Y%m%d-%H%M%S).sql)
-(umask 077; cp .env ~/backup/macho-$(date +%Y%m%d-%H%M%S).env)
+t=$(date +%Y%m%d-%H%M%S)
+(umask 077; docker compose -f compose.prod.yaml exec -T db sh -c 'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" mysqldump -uroot --single-transaction "$MYSQL_DATABASE"' > ~/backup/macho-$t.sql) \
+  && tail -n 1 ~/backup/macho-$t.sql | grep -q '^-- Dump completed' \
+  && (umask 077; cp .env ~/backup/macho-$t.env; git rev-parse HEAD > ~/backup/macho-$t.commit) \
+  && echo OK
 ```
+
+`OK` が表示されなければ、ダンプは不完全なので先へ進まない。
 
 パスワードは `MYSQL_PWD` で渡す。コマンドラインに書くと `ps` に表示される。
 
@@ -119,19 +124,29 @@ docker compose -f compose.prod.yaml up -d --build
    docker compose -f compose.prod.yaml stop api worker
    ```
 
-2. DB を作り直す。
+2. 復元するダンプの最終行を確かめる。`<時刻>` は退避したファイルの名前の `macho-` のあとの部分。`OK` が表示されなければ、そのダンプは不完全なので手順 3 へ進まない。
+
+   ```bash
+   tail -n 1 ~/backup/macho-<時刻>.sql | grep -q '^-- Dump completed' && echo OK
+   ```
+
+3. DB を作り直す。
 
    ```bash
    docker compose -f compose.prod.yaml exec -T db sh -c 'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" mysql -uroot -e "DROP DATABASE \`$MYSQL_DATABASE\`; CREATE DATABASE \`$MYSQL_DATABASE\`"'
    ```
 
-3. ダンプを流し込む。`<ダンプ>` は復元するファイル。
+4. ダンプを流し込む。
 
    ```bash
-   docker compose -f compose.prod.yaml exec -T db sh -c 'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" mysql -uroot "$MYSQL_DATABASE"' < ~/backup/<ダンプ>.sql
+   docker compose -f compose.prod.yaml exec -T db sh -c 'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" mysql -uroot "$MYSQL_DATABASE"' < ~/backup/macho-<時刻>.sql
    ```
 
-4. 前のバージョンのコードへ戻してから、`docker compose -f compose.prod.yaml up -d --build` で起動する。ダンプはマイグレーション前のスキーマで、新しいコードとは合わない。
+5. ダンプと同じ時刻で保存したコミットへ戻してから、`docker compose -f compose.prod.yaml up -d --build` で起動する。ダンプはマイグレーション前のスキーマで、新しいコードとは合わない。
+
+   ```bash
+   git checkout "$(cat ~/backup/macho-<時刻>.commit)"
+   ```
 
 ## Mac mini
 

@@ -1,3 +1,5 @@
+import inspect
+import math
 from datetime import UTC, datetime, timedelta
 
 import pytest
@@ -97,6 +99,16 @@ class TestStartRestTimer:
 
         assert [task_name for task_name, _ in job_queue.enqueued] == [notify_rest_finished_task.name]
 
+    def test_予約するジョブの引数は_worker_の通知タスクの引数と一致する(self, db_session: Session) -> None:
+        repo = DbRestTimerRepository(db_session)
+        job_queue = FakeJobQueue()
+
+        start_rest_timer(repo, job_queue, seconds=180, next_set_label="ベンチプレス 2セット目")
+
+        _, kwargs = job_queue.enqueued[0]
+        bound = inspect.signature(notify_rest_finished_task.run).bind(**kwargs)
+        assert bound.arguments == kwargs
+
     def test_動いている間にもう一度開始すると前のタイマーを置き換える(self, db_session: Session) -> None:
         repo = DbRestTimerRepository(db_session)
         job_queue = FakeJobQueue()
@@ -138,10 +150,16 @@ class TestExtendRestTimer:
         repo = DbRestTimerRepository(db_session)
         job_queue = FakeJobQueue()
         start_rest_timer(repo, job_queue, seconds=180, next_set_label="ベンチプレス 2セット目")
+        before = datetime.now(UTC)
 
-        extend_rest_timer(repo, job_queue, seconds=30)
+        extended = extend_rest_timer(repo, job_queue, seconds=30)
 
-        assert job_queue.countdown_seconds[1] == 210
+        after = datetime.now(UTC)
+        assert (
+            math.ceil((extended.ends_at - after).total_seconds())
+            <= (job_queue.countdown_seconds[1] or 0)
+            <= math.ceil((extended.ends_at - before).total_seconds())
+        )
 
     def test_終了時刻を過ぎたタイマーは延長できない(self, db_session: Session) -> None:
         repo = DbRestTimerRepository(db_session)

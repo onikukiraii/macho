@@ -1,11 +1,13 @@
 from datetime import datetime
 
 from sqlalchemy import delete, select
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.orm import Session
 
 from common.db.entities import PushSubscriptionRow, RestTimerRow
 from features.rest_timer.types import PushSubscription, RestTimer
+
+_MYSQL_DEADLOCK = 1213
 
 
 class DbRestTimerRepository:
@@ -41,6 +43,13 @@ class DbRestTimerRepository:
             self._upsert_rest_timer(timer)
         except IntegrityError:
             # 行が無いときに開始が並行すると、後の INSERT が slot の一意制約に当たる。先に保存された行を置き換え直す
+            self._session.rollback()
+            self._upsert_rest_timer(timer)
+        except OperationalError as e:
+            # 行が無いときの開始が並行すると、REPEATABLE READ で互いの SELECT ... FOR UPDATE が取ったギャップロックに
+            # INSERT が阻まれてデッドロックになる。打ち切られた側は、先の開始が保存した行を置き換え直す
+            if e.orig is None or e.orig.args[0] != _MYSQL_DEADLOCK:
+                raise
             self._session.rollback()
             self._upsert_rest_timer(timer)
 

@@ -1,5 +1,8 @@
 from datetime import UTC, datetime, timedelta
 
+import pymysql
+import pytest
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
 
 from common.db.entities import PushSubscriptionRow, RestTimerRow
@@ -30,6 +33,7 @@ class TestSavePushSubscription:
         assert [(s.endpoint, s.p256dh, s.auth) for s in repo.list_push_subscriptions()] == [
             (IPHONE, "new-p256dh", "new-auth")
         ]
+        assert repo._raced
 
 
 class TestSaveRestTimer:
@@ -41,6 +45,29 @@ class TestSaveRestTimer:
         repo.save_rest_timer(second)
 
         assert repo.get_rest_timer() == second
+        assert repo._raced
+
+    def test_並行した開始とデッドロックしたらやり直して保存する(self, db_session: Session) -> None:
+        repo = _RestTimerLockFailingRepository(db_session, error_code=_MYSQL_DEADLOCK)
+        timer = _timer("6b1f0c2a-3d4e-4f5a-8b9c-0d1e2f3a4b5c", seconds=180)
+
+        repo.save_rest_timer(timer)
+
+        assert repo.get_rest_timer() == timer
+        assert repo._failed
+
+    def test_デッドロック以外の_OperationalError_はそのまま送出する(self, db_session: Session) -> None:
+        repo = _RestTimerLockFailingRepository(db_session, error_code=_MYSQL_LOST_CONNECTION)
+
+        with pytest.raises(OperationalError):
+            repo.save_rest_timer(_timer("6b1f0c2a-3d4e-4f5a-8b9c-0d1e2f3a4b5c", seconds=180))
+
+
+# db_session は1本の接続しか持たず、2つのトランザクションを並行させられない。並行した側が先に書いた状態と
+# MySQL のロックの失敗は、行を読む内部メソッドを差し替えて作る。差し替えたメソッドが呼ばれたことは各テストの
+# 末尾で確かめ、メソッド名が変わって差し替えが外れたまま通るのを防ぐ
+_MYSQL_DEADLOCK = 1213
+_MYSQL_LOST_CONNECTION = 2013
 
 
 class _SubscriptionRacingRepository(DbRestTimerRepository):
@@ -64,4 +91,20 @@ class _RestTimerRacingRepository(DbRestTimerRepository):
         if not self._raced:
             self._raced = True
             return None
+        return super()._get_rest_timer_row()
+
+
+class _RestTimerLockFailingRepository(DbRestTimerRepository):
+    """行が無いことを確かめてから INSERT するまでの間に、MySQL がトランザクションを打ち切った状態を作る。"""
+
+    _failed = False
+
+    def __init__(self, session: Session, *, error_code: int) -> None:
+        super().__init__(session)
+        self._error_code = error_code
+
+    def _get_rest_timer_row(self) -> RestTimerRow | None:
+        if not self._failed:
+            self._failed = True
+            raise OperationalError("INSERT INTO rest_timers", None, pymysql.err.OperationalError(self._error_code))
         return super()._get_rest_timer_row()

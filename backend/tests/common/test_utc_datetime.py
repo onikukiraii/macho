@@ -22,14 +22,13 @@ def _timer(ends_at: datetime) -> RestTimerRow:
 
 class TestUtcDateTime:
     def test_読み出した_datetime_は_UTC_の_aware_で返る(self, db_session: Session) -> None:
-        db_session.add(_timer(datetime(2026, 1, 1, 9, 0, 1, 123456, tzinfo=JST)))
+        db_session.add(_timer(datetime(2026, 1, 1, 9, 0, 1, tzinfo=JST)))
         db_session.commit()
         db_session.expunge_all()
 
         row = db_session.scalars(select(RestTimerRow)).one()
 
-        assert row.ends_at == datetime(2026, 1, 1, 0, 0, 1, 123456, tzinfo=UTC)
-        assert row.ends_at.tzinfo is not None
+        assert (row.ends_at, row.ends_at.tzinfo) == (datetime(2026, 1, 1, 0, 0, 1, tzinfo=UTC), UTC)
 
     def test_naive_な_datetime_は書き込めない(self, db_session: Session) -> None:
         db_session.add(_timer(datetime(2026, 1, 1, 0, 0, 1)))

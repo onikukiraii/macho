@@ -35,15 +35,22 @@ class WebPushSender:
                 ttl=_TTL_SECONDS,
                 timeout=_TIMEOUT_SECONDS,
             )
+        # 例外の文言とスタックトレースには endpoint の URL が入り、URL は端末へ通知を送れるトークンを兼ねる。
+        # そのため logger.exception は使わず、購読の ID、例外の型名、HTTP ステータスに絞って出す
         except WebPushException as e:
             if e.status_code in (404, 410):
                 return PushResult.expired
-            logger.exception(
-                "Web Push を送信できませんでした: subscription_id=%d status=%s", subscription.id, e.status_code
+            logger.warning(
+                "Web Push を送信できませんでした: subscription_id=%d error=%s status=%s",
+                subscription.id,
+                type(e).__name__,
+                e.status_code,
             )
             return PushResult.failed
         # ValueError と ECEException は、登録済みの鍵で通知を暗号化できないときに出る
-        except RequestException, ValueError, ECEException:
-            logger.exception("Web Push を送信できませんでした: subscription_id=%d", subscription.id)
+        except (RequestException, ValueError, ECEException) as e:
+            logger.warning(
+                "Web Push を送信できませんでした: subscription_id=%d error=%s", subscription.id, type(e).__name__
+            )
             return PushResult.failed
         return PushResult.delivered

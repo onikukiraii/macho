@@ -15,7 +15,7 @@ class Settings(BaseSettings):
     app_timezone: str = "Asia/Tokyo"
 
     vapid_private_key: SecretStr = Field(min_length=1)
-    vapid_subject: str = Field(min_length=1, pattern=r"^(mailto:|https://)")
+    vapid_subject: str = Field(pattern=r"^(mailto:.+|https://.+)")
 
     frontend_dist_dir: Path | None = None
 

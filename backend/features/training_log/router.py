@@ -4,7 +4,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Response
 
-from common.errors import BusinessRuleViolation, NotFound
+from common.errors import BusinessRuleViolation, Conflict, NotFound
 from dependencies import get_exercise_repository, get_program_repository, get_today, get_training_log_repository
 from features.exercise.protocol import ExerciseRepository
 from features.program.protocol import ProgramRepository
@@ -200,6 +200,8 @@ def update_sets(
         )
     except NotFound as e:
         raise HTTPException(404, "種目が見つかりません") from e
+    except Conflict as e:
+        raise HTTPException(409, "同じ番号のセットがあります") from e
     return _to_performed_response(performed)
 
 

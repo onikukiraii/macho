@@ -55,3 +55,24 @@ class TestSend:
         result = sender.send(SUBSCRIPTION, title="レスト終了", body="ベンチプレス 2セット目")
 
         assert result is expected
+
+    @pytest.mark.parametrize(
+        "error",
+        [
+            pytest.param(
+                WebPushException(f"Push failed: 500 {SUBSCRIPTION.endpoint}", response=_response(500)), id="500"
+            ),
+            pytest.param(
+                requests.ConnectionError(f"Max retries exceeded with url: {SUBSCRIPTION.endpoint}"), id="接続できない"
+            ),
+        ],
+    )
+    def test_送信できなかったログに端末の_endpoint_を出さない(
+        self, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture, error: Exception
+    ) -> None:
+        monkeypatch.setattr("features.rest_timer.gateway.webpush", _webpush_returning(error))
+        sender = WebPushSender(vapid_private_key=_vapid_private_key(), vapid_subject="mailto:test@example.com")
+
+        sender.send(SUBSCRIPTION, title="レスト終了", body="ベンチプレス 2セット目")
+
+        assert (len(caplog.records), SUBSCRIPTION.endpoint in caplog.text) == (1, False)

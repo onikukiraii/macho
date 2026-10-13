@@ -22,6 +22,8 @@ class TestSettings:
             {"vapid_private_key": ""},
             {"vapid_subject": ""},
             {"vapid_subject": "http://example.com"},
+            {"vapid_subject": "mailto:"},
+            {"vapid_subject": "https://"},
             {"app_timezone": "Mars/Base"},
         ],
     )

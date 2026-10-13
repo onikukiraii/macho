@@ -1,4 +1,4 @@
-from collections.abc import Callable, Generator
+from collections.abc import Callable, Generator, Sequence
 from datetime import date
 from typing import Any
 
@@ -6,7 +6,10 @@ import httpx
 import pytest
 from fastapi.testclient import TestClient
 
-from dependencies import get_today
+from common.errors import Conflict
+from dependencies import SessionDep, get_today, get_training_log_repository
+from features.training_log.repository import DbTrainingLogRepository
+from features.training_log.types import ExerciseSet, TrainingLog
 from main import app
 
 TODAY = date(2026, 10, 14)
@@ -120,6 +123,19 @@ class TestUpdateSets:
 
         assert (resp.status_code, resp.json()["sets"]) == (200, sets)
 
+    def test_セットの保存が一意制約と衝突すると_409_を返す(self, today_client: TestClient) -> None:
+        log, _ = _create_log_with_bench(today_client)
+        app.dependency_overrides[get_training_log_repository] = _ConflictingTrainingLogRepository
+        try:
+            resp = today_client.put(
+                f"/api/training-logs/exercises/{log['exercises'][0]['uid']}/sets",
+                json={"sets": [{"order": 1, "weight": 75.0, "reps": 5, "rir": 2}]},
+            )
+        finally:
+            app.dependency_overrides.pop(get_training_log_repository)
+
+        assert (resp.status_code, resp.json()["detail"]) == (409, "同じ番号のセットがあります")
+
 
 class TestGetTrainingLogs:
     @pytest.mark.parametrize(
@@ -178,3 +194,13 @@ class TestGetTrainingLog:
         resp = client.get("/api/training-logs/00000000-0000-0000-0000-000000000000")
 
         assert (resp.status_code, resp.json()["detail"]) == (404, "トレーニング記録が見つかりません")
+
+
+class _ConflictingTrainingLogRepository(DbTrainingLogRepository):
+    """並行したセットの保存が先に同じ番号のセットを書き、一意制約に当たった状態を作る。"""
+
+    def __init__(self, session: SessionDep) -> None:
+        super().__init__(session)
+
+    def replace_sets(self, performed_uid: str, *, sets: Sequence[ExerciseSet]) -> TrainingLog:
+        raise Conflict(f"同じ番号のセットがあります: uid={performed_uid}")

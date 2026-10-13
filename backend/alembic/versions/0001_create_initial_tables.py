@@ -59,7 +59,11 @@ def upgrade() -> None:
     op.create_table(
         "push_subscriptions",
         sa.Column("id", sa.Integer(), autoincrement=True, nullable=False),
-        sa.Column("endpoint", sa.String(length=500), nullable=False),
+        sa.Column(
+            "endpoint",
+            sa.String(length=500).with_variant(mysql.VARCHAR(500, collation="utf8mb4_0900_as_cs"), "mysql"),
+            nullable=False,
+        ),
         sa.Column("p256dh", sa.String(length=128), nullable=False),
         sa.Column("auth", sa.String(length=64), nullable=False),
         sa.Column("created_at", DATETIME_6, nullable=False),

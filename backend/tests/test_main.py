@@ -93,7 +93,7 @@ class TestCreateApp:
         resp = TestClient(create_app(frontend_dist_dir=None)).get("/openapi.json")
 
         assert resp.status_code == 200
-        assert "openapi" in resp.json()
+        assert any(path.startswith("/api/") for path in resp.json()["paths"])
 
     def test_配信先が無ければ画面を配信しない(self) -> None:
         resp = TestClient(create_app(frontend_dist_dir=None)).get("/exercises/abc")

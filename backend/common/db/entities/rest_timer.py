@@ -1,6 +1,7 @@
 from datetime import UTC, datetime
 
 from sqlalchemy import CheckConstraint, Integer, String
+from sqlalchemy.dialects import mysql
 from sqlalchemy.orm import Mapped, mapped_column
 
 from common.db.entities.base import Base
@@ -11,7 +12,12 @@ class PushSubscriptionRow(Base):
     __tablename__ = "push_subscriptions"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    endpoint: Mapped[str] = mapped_column(String(500), unique=True, nullable=False)
+    # endpoint の URL のパスは大文字と小文字を区別するトークンで、MySQL の既定の照合順序では別の端末が同じ行になる
+    endpoint: Mapped[str] = mapped_column(
+        String(500).with_variant(mysql.VARCHAR(500, collation="utf8mb4_0900_as_cs"), "mysql"),
+        unique=True,
+        nullable=False,
+    )
     p256dh: Mapped[str] = mapped_column(String(128), nullable=False)
     auth: Mapped[str] = mapped_column(String(64), nullable=False)
     created_at: Mapped[datetime] = mapped_column(UtcDateTime, nullable=False, default=lambda: datetime.now(UTC))

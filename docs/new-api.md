@@ -285,11 +285,14 @@ uv run mypy .
 service には具象クラスではなく、Protocol のみを渡すようにします。
 
 ```python
-def notify_rest_finished(repo: RestTimerRepository, sender: PushSender, *, uid: str, ends_at: datetime) -> None:
-    if not repo.delete_by_uid_and_ends_at(uid, ends_at):
+def notify_rest_finished(
+    repo: RestTimerRepository, push_sender: PushSender, *, uid: str, ends_at: int, next_set_label: str
+) -> None:
+    if not repo.delete_finished_rest_timer(uid=uid, ends_at=from_epoch_microseconds(ends_at)):
         return
-    for subscription in repo.list_subscriptions():
-        sender.send(subscription, title="レスト終了", body="次のセットを始めましょう")
+    message = build_rest_finished_message(next_set_label)
+    for subscription in repo.list_push_subscriptions():
+        push_sender.send(subscription, title=message.title, body=message.body)
 ```
 
 外部サービスを呼び出す具象実装クラス内では、外部ライブラリ固有の例外をキャッチし、プロジェクト共通のドメイン例外に変換して再送出してください。たとえば `WebPushSender` が呼ぶ pywebpush は `WebPushException` を送出します。例外の変換を怠ると、`service.py` などの上位レイヤーまで外部ライブラリ固有の例外が漏れ出し、上位レイヤーが外部ライブラリに依存してしまう原因になります。
@@ -299,11 +302,15 @@ def notify_rest_finished(repo: RestTimerRepository, sender: PushSender, *, uid: 
 呼び出しの流れは `router` → `service` → `JobQueue.enqueue` の順序で行います。非同期タスクの実装本体は `worker/tasks.py` に定義し、`dependencies.py` の関数を呼び出して具象インスタンスを組み立てて実行します。
 
 ```python
-@celery_app.task(name=service.NOTIFY_TASK_NAME)
-def notify_rest_finished_task(timer_uid: str, ends_at: str) -> None:
+@celery_app.task(name=rest_timer_service.NOTIFY_REST_FINISHED_TASK_NAME)
+def notify_rest_finished_task(uid: str, ends_at: int, next_set_label: str) -> None:
     with SessionLocal() as session:
-        service.notify_rest_finished(
-            get_rest_timer_repository(session), get_push_sender(), uid=timer_uid, ends_at=datetime.fromisoformat(ends_at)
+        rest_timer_service.notify_rest_finished(
+            get_rest_timer_repository(session),
+            get_push_sender(),
+            uid=uid,
+            ends_at=ends_at,
+            next_set_label=next_set_label,
         )
 ```
 
@@ -318,5 +325,9 @@ def notify_rest_finished_task(timer_uid: str, ends_at: str) -> None:
 リレーション（関連テーブル）を持つ entity の一覧を取得する際は、N+1 問題を防ぐために `selectinload` などを指定して関連レコードを一括で先読み（Eager loading）します。
 
 ```python
-statement = select(TrainingLogRow).options(selectinload(TrainingLogRow.exercises)).order_by(TrainingLogRow.id)
+statement = (
+    select(TrainingLogRow)
+    .options(selectinload(TrainingLogRow.performed_exercises).selectinload(PerformedExerciseRow.sets))
+    .order_by(TrainingLogRow.date, TrainingLogRow.id)
+)
 ```

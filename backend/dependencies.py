@@ -1,5 +1,5 @@
 from collections.abc import Generator
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 from typing import Annotated
 from zoneinfo import ZoneInfo
 
@@ -10,6 +10,7 @@ from common.config import settings
 from common.db.session import SessionLocal
 from common.gateway.job_queue_celery import CeleryJobQueue
 from common.gateway.protocol import JobQueue
+from common.local_date import to_local_date
 from features.exercise.protocol import ExerciseRepository
 from features.exercise.repository import DbExerciseRepository
 from features.program.protocol import ProgramRepository
@@ -34,7 +35,7 @@ SessionDep = Annotated[Session, Depends(get_session)]
 
 
 def get_today() -> date:
-    return datetime.now(ZoneInfo(settings.app_timezone)).date()
+    return to_local_date(datetime.now(UTC), timezone=ZoneInfo(settings.app_timezone))
 
 
 def get_job_queue() -> JobQueue:

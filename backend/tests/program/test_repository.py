@@ -24,10 +24,18 @@ def _program(*, name: str, start_date: date, exercise_id: int) -> NewProgram:
         design_note="",
         weeks=(
             NewProgramWeek(
+                week=2,
+                label="B",
+                days=(
+                    NewProgramDay(
+                        day=1, weekday=Weekday.mon, planned_exercises=(_planned(exercise_id=exercise_id, order=1),)
+                    ),
+                ),
+            ),
+            NewProgramWeek(
                 week=1,
                 label="A",
                 days=(
-                    NewProgramDay(day=1, weekday=Weekday.mon, planned_exercises=()),
                     NewProgramDay(
                         day=2,
                         weekday=Weekday.wed,
@@ -36,15 +44,7 @@ def _program(*, name: str, start_date: date, exercise_id: int) -> NewProgram:
                             _planned(exercise_id=exercise_id, order=1),
                         ),
                     ),
-                ),
-            ),
-            NewProgramWeek(
-                week=2,
-                label="B",
-                days=(
-                    NewProgramDay(
-                        day=1, weekday=Weekday.mon, planned_exercises=(_planned(exercise_id=exercise_id, order=1),)
-                    ),
+                    NewProgramDay(day=1, weekday=Weekday.mon, planned_exercises=()),
                 ),
             ),
         ),
@@ -77,6 +77,22 @@ class TestCreate:
         assert [week.week for week in created.weeks] == [1, 2]
         assert [day.day for day in created.weeks[0].days] == [1, 2]
         assert [planned.order for planned in created.weeks[0].days[1].planned_exercises] == [1, 2]
+
+    def test_渡された順の_Day_に渡された順の_uid_を割り当てる(self, db_session: Session) -> None:
+        repo = DbProgramRepository(db_session)
+        exercise_id = _exercise_id(db_session)
+
+        created = repo.create(
+            uid="p1",
+            day_uids=["d1", "d2", "d3"],
+            program=_program(name="増量期", start_date=date(2026, 9, 28), exercise_id=exercise_id),
+        )
+
+        assert [(week.week, day.day, day.uid) for week in created.weeks for day in week.days] == [
+            (1, 1, "d3"),
+            (1, 2, "d2"),
+            (2, 1, "d1"),
+        ]
 
     def test_予定種目の全フィールドを入力のとおりに保存して取得できる(self, db_session: Session) -> None:
         repo = DbProgramRepository(db_session)
@@ -175,7 +191,7 @@ class TestCreate:
             ),
         )
 
-        with pytest.raises(Conflict):
+        with pytest.raises(Conflict, match="^プログラムを保存できませんでした: uid=p1$"):
             repo.create(uid="p1", day_uids=[], program=duplicated)
 
         created = repo.create(
@@ -204,7 +220,7 @@ class TestCreate:
             ),
         )
 
-        with pytest.raises(Conflict):
+        with pytest.raises(Conflict, match="^プログラムを保存できませんでした: uid=p1$"):
             repo.create(uid="p1", day_uids=["d1", "d2"], program=duplicated)
 
 
@@ -256,14 +272,14 @@ class TestGetLatestStartedOnOrBefore:
         repo = DbProgramRepository(db_session)
         exercise_id = _exercise_id(db_session)
         repo.create(
-            uid="older",
-            day_uids=["g", "h", "i"],
-            program=_program(name="最古", start_date=date(2026, 1, 5), exercise_id=exercise_id),
-        )
-        repo.create(
             uid="old",
             day_uids=["a", "b", "c"],
             program=_program(name="旧", start_date=date(2026, 3, 2), exercise_id=exercise_id),
+        )
+        repo.create(
+            uid="older",
+            day_uids=["g", "h", "i"],
+            program=_program(name="最古", start_date=date(2026, 1, 5), exercise_id=exercise_id),
         )
         repo.create(
             uid="new",

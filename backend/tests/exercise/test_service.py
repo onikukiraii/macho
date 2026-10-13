@@ -51,6 +51,17 @@ class TestAddTrainingMax:
 
 
 class TestUpdateExercise:
+    def test_TM_の履歴が無い派生種目を持たない種目に派生元を設定できる(self, db_session: Session) -> None:
+        repo = DbExerciseRepository(db_session)
+        bench = _create(repo, "ベンチプレス")
+        add_training_max(repo, uid=bench.exercise.uid, value=100.0, reason="初期値")
+        shoulder_press = _create(repo, "ショルダープレス")
+
+        updated = _update(repo, shoulder_press.exercise.uid, "ショルダープレス", parent_uid=bench.exercise.uid)
+
+        assert updated.exercise.parent_id == bench.exercise.id
+        assert repo.get(shoulder_press.exercise.uid).parent_id == bench.exercise.id
+
     def test_TM_の履歴がある種目に派生元を設定できず派生元は変わらない(self, db_session: Session) -> None:
         repo = DbExerciseRepository(db_session)
         bench = _create(repo, "ベンチプレス")

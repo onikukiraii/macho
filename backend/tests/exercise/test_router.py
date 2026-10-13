@@ -3,7 +3,7 @@ from typing import Any
 import pytest
 from fastapi.testclient import TestClient
 
-from features.exercise.types import ExerciseKind
+from features.exercise.types import ExerciseKind, TrainingMaxSource
 
 BENCH = {
     "name": "ベンチプレス",
@@ -105,12 +105,20 @@ class TestCreateExercise:
 
         assert resp.json()["name"] == "スクワット"
 
+    def test_前後の空白を除くと既存の種目と同じ名前なら_409(self, client: TestClient) -> None:
+        client.post("/api/exercises", json=SQUAT)
+
+        resp = client.post("/api/exercises", json={**SQUAT, "name": "スクワット "})
+
+        assert resp.status_code == 409
+
 
 class TestGetExercise:
     def test_存在しない_uid_なら_404(self, client: TestClient) -> None:
         resp = client.get("/api/exercises/no-such-uid")
 
         assert resp.status_code == 404
+        assert resp.json()["detail"] == "種目が見つかりません: uid=no-such-uid"
 
 
 class TestCreateTrainingMax:
@@ -128,7 +136,7 @@ class TestCreateTrainingMax:
         assert resp.json()["exercise"]["current_training_max"] == 122.5
         assert detail["exercise"]["current_training_max"] == 122.5
         assert [(entry["value"], entry["source"]) for entry in detail["training_max_history"]][:1] == [
-            (122.5, "manual")
+            (122.5, TrainingMaxSource.manual)
         ]
 
     def test_値が_0_01_のような小さい正の値でも登録できる(self, client: TestClient) -> None:
@@ -161,6 +169,7 @@ class TestCreateTrainingMax:
         resp = client.post("/api/exercises/no-such-uid/training-maxes", json={"value": 100.0, "reason": "入力"})
 
         assert resp.status_code == 404
+        assert resp.json()["detail"] == "種目が見つかりません: uid=no-such-uid"
 
     @pytest.mark.parametrize(
         ("params", "field"),

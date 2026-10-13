@@ -28,8 +28,9 @@ class DbProgramRepository:
         return self._get_first(select(ProgramRow).where(ProgramRow.start_date <= on))
 
     def create(self, *, uid: str, day_uids: Sequence[str], program: NewProgram) -> Program:
-        days = [day for week in program.weeks for day in week.days]
-        uid_by_day = {id(day): day_uid for day, day_uid in zip(days, day_uids, strict=True)}
+        if len(day_uids) != sum(len(week.days) for week in program.weeks):
+            raise ValueError("day_uids の件数が Day の件数と一致しません")
+        day_uid_iter = iter(day_uids)
         row = ProgramRow(
             uid=uid,
             name=program.name,
@@ -42,7 +43,7 @@ class DbProgramRepository:
                     label=week.label,
                     days=[
                         ProgramDayRow(
-                            uid=uid_by_day[id(day)],
+                            uid=next(day_uid_iter),
                             day=day.day,
                             weekday=day.weekday,
                             planned_exercises=[
@@ -69,7 +70,7 @@ class DbProgramRepository:
             self._session.commit()
         except IntegrityError as e:
             self._session.rollback()
-            raise Conflict("週または Day の番号が重複しています") from e
+            raise Conflict(f"プログラムを保存できませんでした: uid={uid}") from e
         self._session.refresh(row)
         return _to_domain(row)
 

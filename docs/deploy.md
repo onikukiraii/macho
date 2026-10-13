@@ -83,11 +83,16 @@ docker compose -f compose.prod.yaml down -v
 
 初回だけ、`data/` の CSV と xlsx を取り込む。`data/` はイメージに含めず、このコマンドの間だけコンテナへマウントする。種目か記録が1件でもある DB では、スクリプトが中断する。
 
+移行は、その週の Day をすべて終えた金曜の Day4 のあとから日曜までに、その時点で書き出した KINNIK の CSV で流す。取り込んだ記録のうち最も新しい週は評価済みとして記録される。週の途中で流すと、その週の残りをアプリで記録しても、トレーニングマックスの週ごとの自動更新に使われない。
+
 ```bash
-docker compose -f compose.prod.yaml run --rm -v ./data:/data:ro api uv run python -m scripts.import_legacy
+docker compose -f compose.prod.yaml run --rm -v ./data:/data:ro api uv run python -m scripts.import_legacy \
+  --training-csv /data/kinnik/kinnik_CSV_training_2024-02-01_2026-10-14_20261014004624.csv \
+  --program-xlsx /data/BIG3プログラム管理.xlsx \
+  --maintenance-prompt /data/BIG3プログラム管理_保守プロンプト.md
 ```
 
-引数は `uv run python -m scripts.import_legacy --help` で確認する。
+KINNIK の CSV のファイル名には、書き出した期間と時刻が入る。書き出し直したときは `ls data/kinnik/` で `kinnik_CSV_training_` で始まるファイルの名前を確かめて置き換える。3つの引数はどれも必須で、説明は `uv run python -m scripts.import_legacy --help` で確認する。
 
 ### 4. 2回目以降のデプロイ
 

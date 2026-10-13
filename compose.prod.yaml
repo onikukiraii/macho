@@ -6,11 +6,12 @@ x-app: &app
     dockerfile: docker/app.Dockerfile
     args:
       VITE_VAPID_PUBLIC_KEY: ${VITE_VAPID_PUBLIC_KEY:?}
-  env_file:
-    - .env
   environment:
     DATABASE_URL: mysql+pymysql://${MYSQL_USER:?}:${MYSQL_PASSWORD:?}@db:3306/${MYSQL_DATABASE:?}
     CELERY_BROKER_URL: redis://redis:6379/0
+    APP_TIMEZONE: ${APP_TIMEZONE:-Asia/Tokyo}
+    VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:?}
+    VAPID_SUBJECT: ${VAPID_SUBJECT:?}
   restart: unless-stopped
   depends_on:
     db:
@@ -38,7 +39,8 @@ services:
     volumes:
       - mysql-data:/var/lib/mysql
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-u", "root", "-p${MYSQL_ROOT_PASSWORD}"]
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1"]
+      start_period: 30s
       interval: 5s
       timeout: 5s
       retries: 20

@@ -18,15 +18,16 @@ FROM python:3.14-slim
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 ENV UV_NO_DEV=1
+ENV UV_FROZEN=1
 ENV FRONTEND_DIST_DIR=/app/dist
 
 WORKDIR /app
 
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
+COPY --from=ghcr.io/astral-sh/uv:0.13.0 /uv /uvx /bin/
 COPY backend/pyproject.toml backend/uv.lock ./
-RUN uv sync --frozen --no-install-project
+RUN uv sync --no-install-project
 COPY backend/ ./
-RUN uv sync --frozen
+RUN uv sync
 COPY --from=frontend /frontend/dist ./dist
 
 EXPOSE 8000

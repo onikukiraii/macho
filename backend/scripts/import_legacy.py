@@ -7,6 +7,7 @@ from dataclasses import dataclass, replace
 from datetime import date
 from itertools import dropwhile, takewhile
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 from openpyxl import load_workbook
 from openpyxl.workbook.workbook import Workbook

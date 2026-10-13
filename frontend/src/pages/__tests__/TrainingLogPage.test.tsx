@@ -53,6 +53,8 @@ afterEach(() => {
 describe('TrainingLogPage', () => {
   it('削除を押すと、確認のダイアログを開く', async () => {
     renderTrainingLogPage()
+    await screen.findByRole('button', { name: '記録を削除' })
+    expect(screen.getByRole('dialog', { hidden: true })).not.toHaveAttribute('open')
 
     const confirmation = await openDeleteConfirmation()
 

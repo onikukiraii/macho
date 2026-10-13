@@ -26,21 +26,23 @@ function buildPerformedExercise(overrides: Partial<PerformedExercise>): Performe
   }
 }
 
-function deferPromise<T>(): { promise: Promise<T>; resolve: (value: T) => void } {
+function deferPromise<T>(): { promise: Promise<T>; resolve: (value: T) => void; reject: (error: Error) => void } {
   let resolve: (value: T) => void = () => {}
-  const promise = new Promise<T>((settle) => {
+  let reject: (error: Error) => void = () => {}
+  const promise = new Promise<T>((settle, fail) => {
     resolve = settle
+    reject = fail
   })
-  return { promise, resolve }
+  return { promise, resolve, reject }
 }
 
-function renderCard(performedExercise: PerformedExercise) {
+function renderCard(performedExercise: PerformedExercise, onUnsavedChange: (unsaved: boolean) => void = vi.fn()) {
   return render(
     <PerformedExerciseCard
       trainingLogUid="log-1"
       performedExercise={performedExercise}
       onStartRest={vi.fn()}
-      onUnsavedChange={vi.fn()}
+      onUnsavedChange={onUnsavedChange}
       onNavigate={vi.fn()}
     />,
   )
@@ -180,6 +182,73 @@ describe('PerformedExerciseCard', () => {
         [{ order: 1, weight: 100, reps: 5, rir: null }],
       ]),
     )
+  })
+
+  it('セットの送信中は未保存として通知し、送信が成功すると未保存でなくなる', async () => {
+    const save = deferPromise<PerformedExercise>()
+    vi.mocked(trainingLogsApi.replaceSets).mockReturnValueOnce(save.promise)
+    const onUnsavedChange = vi.fn()
+    renderCard(buildPerformedExercise({}), onUnsavedChange)
+
+    enterValue('セット1の重量', '100')
+    enterValue('セット1の回数', '5')
+
+    expect(onUnsavedChange).toHaveBeenLastCalledWith(true)
+
+    await act(async () => save.resolve(buildPerformedExercise({})))
+
+    expect(onUnsavedChange).toHaveBeenLastCalledWith(false)
+  })
+
+  it('範囲外の値で保存を止めている間は未保存として通知し、送信中に待っていた列は完了後に送る', async () => {
+    const firstSave = deferPromise<PerformedExercise>()
+    vi.mocked(trainingLogsApi.replaceSets)
+      .mockReturnValueOnce(firstSave.promise)
+      .mockResolvedValue(buildPerformedExercise({}))
+    const onUnsavedChange = vi.fn()
+    renderCard(buildPerformedExercise({}), onUnsavedChange)
+
+    enterValue('セット1の重量', '100')
+    enterValue('セット1の回数', '5')
+    enterValue('セット1の回数', '6')
+    enterValue('セット1の重量', '501')
+    await act(async () => firstSave.resolve(buildPerformedExercise({})))
+
+    await waitFor(() =>
+      expect(vi.mocked(trainingLogsApi.replaceSets).mock.calls.map(([, body]) => body.sets)).toEqual([
+        [{ order: 1, weight: 100, reps: 5, rir: null }],
+        [{ order: 1, weight: 100, reps: 6, rir: null }],
+      ]),
+    )
+    expect(onUnsavedChange).toHaveBeenLastCalledWith(true)
+
+    enterValue('セット1の重量', '100')
+
+    await waitFor(() => expect(onUnsavedChange).toHaveBeenLastCalledWith(false))
+  })
+
+  it('セットの送信中に待っている列があるとき1本目が失敗すると、未保存を表示して待っていた列を送り、成功すると未保存が消える', async () => {
+    const firstSave = deferPromise<PerformedExercise>()
+    const secondSave = deferPromise<PerformedExercise>()
+    vi.mocked(trainingLogsApi.replaceSets)
+      .mockReturnValueOnce(firstSave.promise)
+      .mockReturnValueOnce(secondSave.promise)
+    renderCard(buildPerformedExercise({}))
+
+    enterValue('セット1の重量', '100')
+    enterValue('セット1の回数', '5')
+    enterValue('セット1の回数', '6')
+    await act(async () => firstSave.reject(new Error('サーバーとの通信に失敗しました')))
+
+    expect(screen.getByRole('button', { name: '未保存' })).toBeInTheDocument()
+    expect(vi.mocked(trainingLogsApi.replaceSets).mock.calls.map(([, body]) => body.sets)).toEqual([
+      [{ order: 1, weight: 100, reps: 5, rir: null }],
+      [{ order: 1, weight: 100, reps: 6, rir: null }],
+    ])
+
+    await act(async () => secondSave.resolve(buildPerformedExercise({})))
+
+    expect(screen.queryByRole('button', { name: '未保存' })).not.toBeInTheDocument()
   })
 
   it.each([

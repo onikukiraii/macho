@@ -64,10 +64,20 @@ describe('copyPreviousColumn', () => {
     ])
   })
 
-  it('前の列が空なら、指定した列を変えない', () => {
-    const columns: SetColumn[] = [EMPTY_COLUMN, { weight: '100', reps: '6', rir: 1 }]
+  it.each([
+    { case: '前の列が空', previous: EMPTY_COLUMN },
+    { case: '前の列に重量だけが入力されている', previous: { weight: '100', reps: '', rir: null } },
+    { case: '前の列に回数だけが入力されている', previous: { weight: '', reps: '5', rir: 2 } },
+  ])('$case なら、指定した列を変えない', ({ previous }) => {
+    const columns: SetColumn[] = [previous, { weight: '100', reps: '6', rir: 1 }]
 
-    expect(copyPreviousColumn(columns, 1)).toEqual([EMPTY_COLUMN, { weight: '100', reps: '6', rir: 1 }])
+    expect(copyPreviousColumn(columns, 1)).toEqual([previous, { weight: '100', reps: '6', rir: 1 }])
+  })
+
+  it('前の列が存在しない先頭の列なら、列を変えない', () => {
+    const columns: SetColumn[] = [{ weight: '100', reps: '6', rir: 1 }]
+
+    expect(copyPreviousColumn(columns, 0)).toEqual(columns)
   })
 })
 

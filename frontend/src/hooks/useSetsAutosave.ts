@@ -21,7 +21,7 @@ export type SetsAutosave = {
  */
 export function useSetsAutosave(
   performedExercise: Pick<PerformedExercise, 'uid' | 'planned' | 'sets'>,
-  onSaveFailedChange: (saveFailed: boolean) => void,
+  onUnsavedChange: (unsaved: boolean) => void,
 ): SetsAutosave {
   const [columns, setColumns] = useState(() => initializeColumns(performedExercise))
   const [saveFailed, setSaveFailed] = useState(false)
@@ -29,26 +29,37 @@ export function useSetsAutosave(
   const sentSetsKey = useRef<string | null>(JSON.stringify(toSetParams(columns)))
   const sending = useRef(false)
   const queuedColumns = useRef<SetColumn[] | null>(null)
+  const saveFailedRef = useRef(false)
+  const outOfRange = useRef(false)
+  const notifiedUnsaved = useRef(false)
 
-  function updateSaveFailed(failed: boolean): void {
-    setSaveFailed(failed)
-    onSaveFailedChange(failed)
+  function notifyUnsaved(): void {
+    const unsaved = saveFailedRef.current || outOfRange.current || sending.current || queuedColumns.current !== null
+    if (unsaved === notifiedUnsaved.current) return
+    notifiedUnsaved.current = unsaved
+    onUnsavedChange(unsaved)
   }
 
-  function saveColumns(nextColumns: SetColumn[]): void {
-    if (nextColumns.some((column) => !isValidWeight(column.weight) || !isValidReps(column.reps))) {
-      queuedColumns.current = null
-      return
-    }
+  function updateSaveFailed(failed: boolean): void {
+    saveFailedRef.current = failed
+    setSaveFailed(failed)
+  }
+
+  function sendColumns(nextColumns: SetColumn[]): void {
     if (sending.current) {
       queuedColumns.current = nextColumns
+      notifyUnsaved()
       return
     }
     const sets = toSetParams(nextColumns)
     const setsKey = JSON.stringify(sets)
-    if (setsKey === sentSetsKey.current) return
+    if (setsKey === sentSetsKey.current) {
+      notifyUnsaved()
+      return
+    }
     sending.current = true
     sentSetsKey.current = setsKey
+    notifyUnsaved()
     trainingLogsApi
       .replaceSets(performedExercise.uid, { sets })
       .then(() => updateSaveFailed(false))
@@ -60,8 +71,15 @@ export function useSetsAutosave(
         sending.current = false
         const queued = queuedColumns.current
         queuedColumns.current = null
-        if (queued !== null) saveColumns(queued)
+        if (queued === null) notifyUnsaved()
+        else sendColumns(queued)
       })
+  }
+
+  function saveColumns(nextColumns: SetColumn[]): void {
+    outOfRange.current = nextColumns.some((column) => !isValidWeight(column.weight) || !isValidReps(column.reps))
+    if (outOfRange.current) notifyUnsaved()
+    else sendColumns(nextColumns)
   }
 
   function commitColumns(nextColumns: SetColumn[]): void {

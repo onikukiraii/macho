@@ -1,16 +1,16 @@
 import { useState } from 'react'
 import { BottomSheet } from '@/components/BottomSheet'
 import { Button } from '@/components/dads/Button'
-import type { RestTimerControls, RunningRestTimer } from '@/hooks/useRestTimer'
+import type { NotificationStatus, RunningRestTimer } from '@/hooks/useRestTimer'
 import { formatRestTime, remainingRestRatio } from '@/lib/restTimer'
 
 type RestTimerSheetProps = {
   open: boolean
   onClose: () => void
   running: RunningRestTimer
-  notificationStatus: RestTimerControls['notificationStatus']
-  onExtend: RestTimerControls['extendRestTimer']
-  onStop: RestTimerControls['stopRestTimer']
+  notificationStatus: NotificationStatus
+  onExtend: () => Promise<void>
+  onStop: () => Promise<boolean>
 }
 
 const CIRCLE_RADIUS = 45

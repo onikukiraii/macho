@@ -11,7 +11,7 @@ const TABS = [
 export function TabLayout() {
   return (
     <div className="flex min-h-dvh flex-col">
-      <main className="flex-1 pb-20">
+      <main className="flex-1 pb-[calc(5rem+env(safe-area-inset-bottom))]">
         <Outlet />
       </main>
       <nav aria-label="メニュー" className="fixed inset-x-0 bottom-0 border-t border-border bg-card pb-[env(safe-area-inset-bottom)]">

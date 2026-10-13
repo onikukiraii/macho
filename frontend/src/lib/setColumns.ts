@@ -34,10 +34,10 @@ export function fillWeightForward(columns: SetColumn[], index: number): SetColum
   )
 }
 
-/** 前の列が空なら、入力済みの列を消さないよう何も変えない */
+/** 前の列が存在しないか、セットと見なされない（重量か回数が空）なら、入力済みの列を消さないよう何も変えない */
 export function copyPreviousColumn(columns: SetColumn[], index: number): SetColumn[] {
   const previous = columns[index - 1]
-  if (previous.weight === '' && previous.reps === '' && previous.rir === null) return columns
+  if (previous === undefined || previous.weight === '' || previous.reps === '') return columns
   return columns.map((column, position) => (position === index ? previous : column))
 }
 

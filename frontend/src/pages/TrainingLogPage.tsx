@@ -120,7 +120,7 @@ function TrainingLogView({ uid }: { uid: string }): ReactElement {
   }
 
   return (
-    <div className="flex flex-col gap-4 p-4 pb-28">
+    <div className="flex flex-col gap-4 p-4 pb-[calc(7rem+env(safe-area-inset-bottom))]">
       <Link to="/" onClick={(event) => confirmLeaveIfUnsaved(event, '/')} className="text-dns-14N-130 text-primary underline">
         ホームへ戻る
       </Link>

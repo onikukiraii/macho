@@ -1,0 +1,105 @@
+[tools]
+python = "3.14.2"
+uv = "latest"
+node = "22"
+
+[env]
+_.file = ".env"
+
+[tasks.migrate]
+description = "Run database migrations"
+run = "uv run alembic upgrade head"
+dir = "backend"
+
+[tasks.migrate-gen]
+description = "Generate a new migration file"
+run = "uv run alembic revision --autogenerate -m {{arg(name=\"message\")}}"
+dir = "backend"
+
+[tasks.lint]
+description = "Run linters (Ruff + mypy)"
+run = [
+  "uv run ruff check .",
+  "uv run ruff format --check .",
+  "uv run mypy ."
+]
+dir = "backend"
+
+[tasks.format]
+description = "Format code with Ruff"
+run = [
+  "uv run ruff check --fix .",
+  "uv run ruff format ."
+]
+dir = "backend"
+
+[tasks.dev]
+description = "Start backend development server"
+run = "uv run fastapi dev"
+dir = "backend"
+
+[tasks.worker]
+description = "Start Celery worker for async jobs"
+run = "uv run celery -A worker.app worker --loglevel=info"
+dir = "backend"
+
+[tasks."dev:front"]
+description = "Start frontend development server"
+run = "npm run dev"
+dir = "frontend"
+
+[tasks."lint:front"]
+description = "Run frontend linters (ESLint + tsc)"
+run = [
+  "npm run lint",
+  "npx tsc --noEmit"
+]
+dir = "frontend"
+
+[tasks."lint:all"]
+description = "Run all linters"
+depends = ["lint", "lint:front"]
+
+[tasks."build:front"]
+description = "Build frontend for production"
+run = "npm run build"
+dir = "frontend"
+
+[tasks.generate-api]
+description = "Generate TypeScript types from OpenAPI schema"
+run = "npm run generate-api"
+dir = "frontend"
+
+[tasks."dads:add"]
+description = "Copy a component from the latest Digital Agency Design System React snippets into src/components/dads/"
+run = '''
+set -eu
+R=repos/digital-go-jp/design-system-example-components-react
+NAME={{arg(name="name")}}
+SHA=$(gh api "$R/commits/main" --jq .sha)
+mkdir -p "src/components/dads/$NAME"
+for f in $(gh api "$R/contents/src/components/$NAME?ref=$SHA" --jq '.[] | select(.type=="file") | .name' | grep -vE '\.(stories|test)\.tsx?$'); do
+  gh api "$R/contents/src/components/$NAME/$f?ref=$SHA" -H 'Accept: application/vnd.github.raw' > "src/components/dads/$NAME/$f"
+done
+echo "$NAME を $SHA から取り込みました"
+'''
+dir = "frontend"
+
+[tasks."format:front"]
+description = "Fix frontend lint issues"
+run = "npm run lint -- --fix"
+dir = "frontend"
+
+[tasks.test]
+description = "Run backend tests"
+run = "uv run pytest -v"
+dir = "backend"
+
+[tasks."test:front"]
+description = "Run frontend tests"
+run = "npm test"
+dir = "frontend"
+
+[tasks."test:all"]
+description = "Run all tests (backend + frontend)"
+depends = ["test", "test:front"]

@@ -18,6 +18,7 @@ from features.training_log._pure import (
     calculate_next_week_start_at,
     calculate_target_weight,
     calculate_week_end,
+    calculate_week_start,
     evaluate_week,
     find_planned_exercise,
     find_week_to_evaluate,
@@ -265,6 +266,16 @@ def _evaluate_previous_week(
         # 並行した記録の作成が同じ週を先に評価した。TM はそちらで更新済みなので、評価済みとして記録の作成へ進む
         return ()
     return tuple(updates)
+
+
+def mark_week_evaluated(exercise_repo: ExerciseRepository, *, on: date) -> None:
+    week_start = calculate_week_start(on)
+    exercise_service.record_weekly_evaluation(
+        exercise_repo,
+        week_start=week_start,
+        effective_at=calculate_next_week_start_at(week_start, timezone=ZoneInfo(settings.app_timezone)),
+        updates=[],
+    )
 
 
 def format_scheduled_day_label(scheduled_day: ScheduledDay | None) -> str | None:

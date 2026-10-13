@@ -2,30 +2,33 @@ import argparse
 import csv
 import io
 import logging
+import re
+from collections import Counter
 from collections.abc import Iterable, Mapping, Sequence
-from dataclasses import dataclass, replace
+from dataclasses import asdict, dataclass, replace
 from datetime import date
+from decimal import ROUND_HALF_UP, Decimal
 from itertools import dropwhile, takewhile
 from pathlib import Path
-from zoneinfo import ZoneInfo
 
 from openpyxl import load_workbook
 from openpyxl.workbook.workbook import Workbook
 from openpyxl.worksheet.worksheet import Worksheet
+from pydantic import BaseModel, ValidationError
 from sqlalchemy.orm import Session
 
-from common.config import settings
 from common.db.session import SessionLocal
 from common.errors import Conflict
 from dependencies import get_exercise_repository, get_program_repository, get_today, get_training_log_repository
 from features.exercise import service as exercise_service
+from features.exercise.dto import ExerciseSaveParams
 from features.exercise.protocol import ExerciseRepository
 from features.exercise.types import Exercise
 from features.program import service as program_service
 from features.program.protocol import ProgramRepository
 from features.program.types import NewPlannedExercise, NewProgram, NewProgramDay, NewProgramWeek, Weekday
 from features.training_log import service as training_log_service
-from features.training_log._pure import calculate_next_week_start_at, calculate_week_start
+from features.training_log.dto import PerformedExerciseUpdateParams, SetsReplaceParams
 from features.training_log.protocol import TrainingLogRepository
 from features.training_log.types import ExerciseSet
 
@@ -56,6 +59,10 @@ WEEKDAYS = {
     "土": Weekday.sat,
     "日": Weekday.sun,
 }
+DAY_PATTERN = re.compile(rf"(Day\d+|{TEST_DAY_PREFIX}) [{''.join(WEEKDAYS)}]")
+
+
+class InvalidLegacyFile(Exception): ...
 
 
 @dataclass(frozen=True)
@@ -124,7 +131,7 @@ def parse_training_csv(text: str) -> list[LegacyTrainingLog]:
         exercise_set = ExerciseSet(
             order=int(row["セット"]),
             weight=0.0 if row["重量"] == "" else float(row["重量"]),
-            reps=round(float(row["レップ数"])),
+            reps=int(Decimal(row["レップ数"]).quantize(Decimal(1), rounding=ROUND_HALF_UP)),
             rir=None,
         )
         exercises = exercises_by_date.setdefault(date.fromisoformat(row["日付"]), [])
@@ -141,14 +148,14 @@ def parse_training_csv(text: str) -> list[LegacyTrainingLog]:
 
 
 def extract_design_note(maintenance_prompt: str) -> str:
-    lines = maintenance_prompt.splitlines()
-    section = dropwhile(lambda line: not line.startswith("## 3."), lines)
-    next(section)
+    section = dropwhile(lambda line: not line.startswith("## 3."), maintenance_prompt.splitlines())
+    if next(section, None) is None:
+        raise InvalidLegacyFile("保守プロンプトに「## 3.」の節がありません")
     return "\n".join(takewhile(lambda line: not line.startswith("## "), section)).strip()
 
 
 def plan_exercises(
-    master: Sequence[MasterExercise], training_logs: Sequence[LegacyTrainingLog]
+    master: Sequence[MasterExercise], training_logs: Sequence[LegacyTrainingLog], *, planned_names: Iterable[str]
 ) -> list[ExerciseToCreate]:
     base_names = {exercise.category: exercise.name for exercise in master if exercise.coefficient == 1}
     from_master = [
@@ -162,7 +169,10 @@ def plan_exercises(
         for exercise in master
     ]
     master_names = {exercise.name for exercise in master}
-    logged_names = dict.fromkeys(exercise.name for log in training_logs for exercise in log.exercises)
+    # 増量期の予定にあってまだ実施していない補助種目も、予定種目の参照先として作る
+    logged_names = dict.fromkeys(
+        [*(exercise.name for log in training_logs for exercise in log.exercises), *planned_names]
+    )
     from_logs = [
         ExerciseToCreate(
             name=name,
@@ -189,7 +199,7 @@ def build_program(rows: Sequence[PhaseRow], *, design_note: str, exercise_ids: M
         design_note=design_note,
         weeks=tuple(
             NewProgramWeek(
-                week=int(week.partition(" ")[0]),
+                week=_week_number(week),
                 label=label,
                 days=tuple(
                     _build_day(day, day_rows, position=position, exercise_ids=exercise_ids)
@@ -254,7 +264,74 @@ def fill_rir(training_logs: Sequence[LegacyTrainingLog], records: Iterable[RirRe
     return RirFilling(training_logs=tuple(logs_by_date.values()), unfilled_count=unfilled_count)
 
 
-def import_legacy_data(
+def validate_bulking_rows(rows: Sequence[PhaseRow]) -> None:
+    for row in rows:
+        if DAY_PATTERN.fullmatch(row.day) is None:
+            raise InvalidLegacyFile(f"増量期シートの Day の列の形式が不正です: 週 {row.week} の {row.day}")
+    week_counts = Counter(_week_number(week) for week in dict.fromkeys(row.week for row in rows))
+    duplicated_weeks = [week for week, count in week_counts.items() if count > 1]
+    if len(duplicated_weeks) > 0:
+        raise InvalidLegacyFile(f"増量期シートの週番号が重複しています: {duplicated_weeks}")
+    test_row_counts = Counter(
+        (row.week, row.day, row.exercise_name) for row in rows if row.day.startswith(TEST_DAY_PREFIX)
+    )
+    for (week, day, exercise_name), count in test_row_counts.items():
+        if count != len(TEST_WEEK_PERCENTS):
+            raise InvalidLegacyFile(
+                f"増量期シートのテスト週は種目ごとに{len(TEST_WEEK_PERCENTS)}行にしてください: "
+                f"週 {week} の {day} の {exercise_name} は {count} 行です"
+            )
+    for row in rows:
+        guide_date = program_service.calculate_guide_date(
+            PROGRAM_START_DATE, week=_week_number(row.week), weekday=WEEKDAYS[row.day.partition(" ")[2]]
+        )
+        if row.guide_date != guide_date:
+            raise InvalidLegacyFile(
+                f"増量期シートの目安日が週と曜日から求めた日付と一致しません: "
+                f"週 {row.week} の {row.day} は {guide_date} ですが、目安日は {row.guide_date} です"
+            )
+
+
+def validate_training_logs(training_logs: Sequence[LegacyTrainingLog], *, today: date) -> None:
+    if len(training_logs) == 0:
+        raise InvalidLegacyFile("KINNIK の CSV にトレーニング記録がありません")
+    if training_logs[-1].date > today:
+        raise InvalidLegacyFile(f"KINNIK の CSV に今日より後の日付があります: {training_logs[-1].date}")
+    for training_log in training_logs:
+        for exercise in training_log.exercises:
+            _validate_api_params(
+                SetsReplaceParams,
+                {"sets": [asdict(exercise_set) for exercise_set in exercise.sets]},
+                reason=(
+                    f"KINNIK の CSV のセットが受け付けられる範囲を外れています: {training_log.date} の {exercise.name}"
+                ),
+            )
+            _validate_api_params(
+                PerformedExerciseUpdateParams,
+                {"exercise_uid": "", "memo": exercise.memo},
+                reason=(
+                    f"KINNIK の CSV のメモが受け付けられる範囲を外れています: {training_log.date} の {exercise.name}"
+                ),
+            )
+
+
+def validate_exercise_plans(plans: Iterable[ExerciseToCreate]) -> None:
+    for plan in plans:
+        _validate_api_params(
+            ExerciseSaveParams,
+            {
+                "name": plan.name,
+                "parent_uid": None,
+                "coefficient": plan.coefficient,
+                "e1rm_divisor": plan.e1rm_divisor,
+                "increment_kg": INCREMENT_KG,
+                "default_rest_seconds": plan.default_rest_seconds,
+            },
+            reason=f"種目の値が受け付けられる範囲を外れています: {plan.name}",
+        )
+
+
+def import_legacy_records(
     session: Session, *, training_csv: Path, program_xlsx: Path, maintenance_prompt: Path, today: date
 ) -> None:
     exercise_repo = get_exercise_repository(session)
@@ -267,20 +344,29 @@ def import_legacy_data(
     if has_exercises or latest is not None:
         raise Conflict("種目かトレーニング記録がある DB には移行できません。DB を作り直してから流してください")
 
+    # 書き込みは repository ごとに commit される。途中で失敗して一部だけ残らないよう、
+    # 入力の検査を最初の書き込みより前に済ませる
+    design_note = extract_design_note(maintenance_prompt.read_text(encoding="utf-8"))
     workbook = load_workbook(program_xlsx, data_only=True)
     bulking_rows = _read_phase_rows(workbook["増量期"])
+    validate_bulking_rows(bulking_rows)
     rir_filling = fill_rir(
         parse_training_csv(training_csv.read_text(encoding="utf-8-sig")),
         list_rir_records([*_read_phase_rows(workbook["減量期"]), *bulking_rows]),
     )
     training_logs = rir_filling.training_logs
+    validate_training_logs(training_logs, today=today)
+    exercise_plans = plan_exercises(
+        _read_master_exercises(workbook), training_logs, planned_names=[row.exercise_name for row in bulking_rows]
+    )
+    validate_exercise_plans(exercise_plans)
 
-    exercises = _create_exercises(exercise_repo, plan_exercises(_read_master_exercises(workbook), training_logs))
+    exercises = _create_exercises(exercise_repo, exercise_plans)
     program = program_service.create_program(
         program_repo,
         program=build_program(
             bulking_rows,
-            design_note=extract_design_note(maintenance_prompt.read_text(encoding="utf-8")),
+            design_note=design_note,
             exercise_ids={name: exercise.id for name, exercise in exercises.items()},
         ),
     )
@@ -303,13 +389,7 @@ def import_legacy_data(
         )
 
     # 移行後に利用者が入力する TM へ、取り込んだ週の実績で自動の +2.5 が重ならないようにする
-    latest_week_start = calculate_week_start(training_logs[-1].date)
-    exercise_service.record_weekly_evaluation(
-        exercise_repo,
-        week_start=latest_week_start,
-        effective_at=calculate_next_week_start_at(latest_week_start, timezone=ZoneInfo(settings.app_timezone)),
-        updates=[],
-    )
+    training_log_service.mark_week_evaluated(exercise_repo, on=training_logs[-1].date)
 
     logger.info("種目 %d 件とプログラム %d 週を取り込みました", len(exercises), len(program.weeks))
     logger.info(
@@ -321,23 +401,38 @@ def import_legacy_data(
     logger.info("RIR を入れられなかった xlsx の行は %d 件です", rir_filling.unfilled_count)
 
 
-def main() -> None:
+def main(argv: Sequence[str] | None = None) -> None:
     parser = argparse.ArgumentParser(
         description="KINNIK の CSV と xlsx から、種目、増量期のプログラム、トレーニング記録を空の DB に取り込む"
     )
     parser.add_argument("--training-csv", type=Path, required=True, help="KINNIK の kinnik_CSV_training_*.csv")
     parser.add_argument("--program-xlsx", type=Path, required=True, help="BIG3プログラム管理.xlsx")
     parser.add_argument("--maintenance-prompt", type=Path, required=True, help="BIG3プログラム管理_保守プロンプト.md")
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
     logging.basicConfig(level=logging.INFO)
     with SessionLocal() as session:
-        import_legacy_data(
-            session,
-            training_csv=args.training_csv,
-            program_xlsx=args.program_xlsx,
-            maintenance_prompt=args.maintenance_prompt,
-            today=get_today(),
-        )
+        try:
+            import_legacy_records(
+                session,
+                training_csv=args.training_csv,
+                program_xlsx=args.program_xlsx,
+                maintenance_prompt=args.maintenance_prompt,
+                today=get_today(),
+            )
+        except (Conflict, InvalidLegacyFile) as error:
+            logger.error("移行を中断しました。%s", error)
+            raise SystemExit(1) from error
+
+
+def _week_number(week: str) -> int:
+    return int(week.partition(" ")[0])
+
+
+def _validate_api_params(params: type[BaseModel], values: Mapping[str, object], *, reason: str) -> None:
+    try:
+        params.model_validate(values)
+    except ValidationError as error:
+        raise InvalidLegacyFile(f"{reason}\n{error}") from error
 
 
 def _e1rm_divisor(name: str) -> float:
@@ -406,7 +501,7 @@ def _read_phase_rows(worksheet: Worksheet) -> list[PhaseRow]:
         PhaseRow(
             week=str(row[0]),
             guide_date=row[1].date(),
-            day=row[2],
+            day=str(row[2]),
             exercise_name=row[3],
             sets=int(row[5]),
             reps=int(row[6]),
@@ -416,6 +511,7 @@ def _read_phase_rows(worksheet: Worksheet) -> list[PhaseRow]:
             actual_rir=None if row[11] is None else int(row[11]),
         )
         for row in worksheet.iter_rows(min_row=2, values_only=True)
+        if any(value is not None for value in row)
     ]
 
 

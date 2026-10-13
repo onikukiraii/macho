@@ -3,7 +3,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Response
 
-from common.errors import BusinessRuleViolation, Conflict, NotFound
+from common.errors import BusinessRuleViolation, NotFound
 from dependencies import get_exercise_repository, get_program_repository, get_today, get_training_log_repository
 from features.exercise.protocol import ExerciseRepository
 from features.program.protocol import ProgramRepository
@@ -170,8 +170,6 @@ def create_training_log(
         raise HTTPException(404, "Day が見つかりません") from e
     except BusinessRuleViolation as e:
         raise HTTPException(400, str(e)) from e
-    except Conflict as e:
-        raise HTTPException(409, str(e)) from e
     return TrainingLogCreatedResponse(
         uid=created.training_log.uid,
         training_max_updates=[

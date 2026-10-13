@@ -2,7 +2,7 @@ from collections.abc import Iterable, Sequence
 from datetime import date, timedelta
 from uuid import uuid4
 
-from common.errors import NotFound
+from common.errors import Conflict, NotFound
 from features.exercise import service as exercise_service
 from features.exercise.protocol import ExerciseRepository
 from features.exercise.types import TrainingMaxUpdate
@@ -245,7 +245,11 @@ def _evaluate_previous_week(
         repo.list_between(week_start, week_start + timedelta(days=6)),
         bases=exercise_service.get_calculation_bases(exercise_repo, on=today),
     )
-    exercise_service.record_weekly_evaluation(exercise_repo, week_start=week_start, updates=updates)
+    try:
+        exercise_service.record_weekly_evaluation(exercise_repo, week_start=week_start, updates=updates)
+    except Conflict:
+        # 並行した記録の作成が同じ週を先に評価した。TM はそちらで更新済みなので、評価済みとして記録の作成へ進む
+        return ()
     return tuple(updates)
 
 

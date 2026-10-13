@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 
 from common.errors import BusinessRuleViolation
 from features.exercise.repository import DbExerciseRepository
-from features.exercise.service import create_exercise, get_exercise
+from features.exercise.service import create_exercise, get_exercise, record_weekly_evaluation
 from features.exercise.types import ResolvedExercise, TrainingMax, TrainingMaxSource
 from features.program.repository import DbProgramRepository
 from features.program.service import create_program
@@ -432,6 +432,33 @@ class TestCreateTrainingLog:
 
         assert created.training_max_updates == ()
 
+    def test_並行した作成で週が評価済みになっていれば評価済みとして記録を作る(
+        self, repo: DbTrainingLogRepository, db_session: Session, program_repo: DbProgramRepository
+    ) -> None:
+        exercise_repo = _EvaluationRacingExerciseRepository(db_session)
+        bench = _exercise(exercise_repo, "ベンチプレス")
+        _set_training_max(exercise_repo, bench, 88.0)
+        _program(program_repo, planned=())
+        _record(
+            repo,
+            exercise_repo,
+            program_repo,
+            on=date(2026, 10, 6),
+            sets_by_exercise=[(bench, [ExerciseSet(order=1, weight=77.5, reps=5, rir=2)])],
+        )
+        record_weekly_evaluation(exercise_repo, week_start=date(2026, 10, 5), updates=[])
+
+        created = create_training_log(
+            repo,
+            exercise_repo=exercise_repo,
+            program_repo=program_repo,
+            on=date(2026, 10, 13),
+            program_day_uid=None,
+            today=date(2026, 10, 13),
+        )
+
+        assert (created.training_max_updates, repo.get(created.training_log.uid).date) == ((), date(2026, 10, 13))
+
 
 class TestGetTrainingLog:
     def test_前回は開いた記録より前の同じ種目を含む最も新しい記録のトップセット(
@@ -593,3 +620,10 @@ class TestListExerciseHistory:
             )
             for record in history
         ] == [(date(2026, 10, 9), 4, tuple(newer_sets)), (date(2026, 10, 2), None, tuple(older_sets))]
+
+
+class _EvaluationRacingExerciseRepository(DbExerciseRepository):
+    """評価済みかの確認と評価の書き込みの間に、並行した作成が同じ週を評価した状態を作る。"""
+
+    def is_week_evaluated(self, week_start: date) -> bool:
+        return False

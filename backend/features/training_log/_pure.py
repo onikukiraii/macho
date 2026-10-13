@@ -1,7 +1,7 @@
 import csv
 import io
 from collections.abc import Collection, Mapping, Sequence
-from datetime import date, timedelta
+from datetime import date, datetime, time, timedelta, tzinfo
 from decimal import ROUND_HALF_UP, Decimal
 
 from common.errors import BusinessRuleViolation
@@ -41,9 +41,15 @@ def calculate_week_start(on: date) -> date:
     return on - timedelta(days=on.weekday())
 
 
-def find_week_to_evaluate(*, latest_recorded_on: date | None, new_date: date) -> date | None:
-    if latest_recorded_on is None:
-        return None
+def calculate_week_end(week_start: date) -> date:
+    return week_start + timedelta(days=6)
+
+
+def calculate_next_week_start_at(week_start: date, *, timezone: tzinfo) -> datetime:
+    return datetime.combine(week_start + timedelta(days=7), time(), tzinfo=timezone)
+
+
+def find_week_to_evaluate(*, latest_recorded_on: date, new_date: date) -> date | None:
     latest_week_start = calculate_week_start(latest_recorded_on)
     if calculate_week_start(new_date) <= latest_week_start:
         return None
@@ -51,7 +57,9 @@ def find_week_to_evaluate(*, latest_recorded_on: date | None, new_date: date) ->
 
 
 def calculate_e1rm(exercise_set: ExerciseSet, *, basis: CalculationBasis) -> float:
-    return _round_half_up(_estimate_raw_e1rm(exercise_set, e1rm_divisor=basis.e1rm_divisor) / basis.coefficient, 0.1)
+    return _round_half_up(
+        _estimate_raw_e1rm(exercise_set, e1rm_divisor=basis.e1rm_divisor) / basis.coefficient, step=0.1
+    )
 
 
 def select_top_set(sets: Sequence[ExerciseSet], *, e1rm_divisor: float) -> ExerciseSet | None:
@@ -192,6 +200,10 @@ def find_planned_exercise(
     )
 
 
+def list_export_dates(logs: Sequence[TrainingLog], *, from_date: date) -> list[date]:
+    return sorted({log.date for log in logs if log.date >= from_date})
+
+
 def build_export_csv(
     logs: Sequence[TrainingLog],
     *,
@@ -256,10 +268,12 @@ def _calculate_training_max_weight(basis: CalculationBasis, planned: PlannedExer
         return None
     base_weight = basis.training_max * basis.coefficient
     if planned.target_percent is not None:
-        return _round_half_up(base_weight * planned.target_percent / 100, PLATE_STEP_KG)
+        return _round_half_up(base_weight * planned.target_percent / 100, step=PLATE_STEP_KG)
     if planned.target_rpe is not None:
         reps_in_reserve = 10 - planned.target_rpe
-        return _round_half_up(base_weight / (1 + (planned.reps + reps_in_reserve) / basis.e1rm_divisor), PLATE_STEP_KG)
+        return _round_half_up(
+            base_weight / (1 + (planned.reps + reps_in_reserve) / basis.e1rm_divisor), step=PLATE_STEP_KG
+        )
     return None
 
 
@@ -278,7 +292,7 @@ def _rir_or_zero(exercise_set: ExerciseSet) -> int:
     return 0 if exercise_set.rir is None else exercise_set.rir
 
 
-def _round_half_up(value: float, step: float) -> float:
+def _round_half_up(value: float, *, step: float) -> float:
     # 浮動小数の誤差で 73.75 が 73.7499... になると切り下がるため、桁を落としてから丸める
     steps = Decimal(repr(round(value / step, 9))).quantize(Decimal(1), rounding=ROUND_HALF_UP)
     return float(steps * Decimal(repr(step)))

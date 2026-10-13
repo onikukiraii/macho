@@ -2,10 +2,11 @@ from collections.abc import Collection, Sequence
 from datetime import date
 
 from sqlalchemy import ColumnElement, Select, and_, func, or_, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
 from common.db.entities import ExerciseSetRow, PerformedExerciseRow, TrainingLogRow
-from common.errors import NotFound
+from common.errors import Conflict, NotFound
 from features.training_log.types import (
     ExerciseHistoryEntry,
     ExerciseSet,
@@ -31,13 +32,13 @@ class DbTrainingLogRepository:
         row = self._session.execute(statement).scalars().first()
         return None if row is None else _to_domain(row)
 
-    def list_between(self, from_date: date, to_date: date) -> list[TrainingLog]:
+    def list_between(self, *, from_date: date, to_date: date) -> list[TrainingLog]:
         return self._list(TrainingLogRow.date.between(from_date, to_date))
 
     def list_on_or_before(self, to_date: date) -> list[TrainingLog]:
         return self._list(TrainingLogRow.date <= to_date)
 
-    def count_sets_between(self, from_date: date, to_date: date) -> int:
+    def count_sets_between(self, *, from_date: date, to_date: date) -> int:
         statement = (
             select(func.count(ExerciseSetRow.id))
             .join(ExerciseSetRow.performed_exercise)
@@ -129,14 +130,24 @@ class DbTrainingLogRepository:
         return self.get_by_performed_uid(performed_uid)
 
     def replace_sets(self, performed_uid: str, *, sets: Sequence[ExerciseSet]) -> TrainingLog:
-        row = self._get_performed_row(performed_uid)
+        statement = select(PerformedExerciseRow).where(PerformedExerciseRow.uid == performed_uid).with_for_update()
+        row = self._session.execute(statement).scalar_one_or_none()
+        if row is None:
+            raise NotFound(f"実施種目が見つかりません: uid={performed_uid}")
+        # 前のセットの DELETE を先に流す。同じ番号の INSERT が先に流れると一意制約に反する
+        row.sets = []
+        self._session.flush()
         row.sets = [
             ExerciseSetRow(
                 sort_order=exercise_set.order, weight=exercise_set.weight, reps=exercise_set.reps, rir=exercise_set.rir
             )
             for exercise_set in sets
         ]
-        self._session.commit()
+        try:
+            self._session.commit()
+        except IntegrityError as e:
+            self._session.rollback()
+            raise Conflict(f"同じ番号のセットがあります: uid={performed_uid}") from e
         return self.get_by_performed_uid(performed_uid)
 
     def delete(self, uid: str) -> None:

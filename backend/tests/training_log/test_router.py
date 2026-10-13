@@ -103,31 +103,74 @@ class TestUpdateSets:
 
         assert (resp.status_code, [error["type"] for error in resp.json()["detail"]]) == (422, error_types)
 
+    @pytest.mark.parametrize(
+        "sets",
+        [
+            pytest.param([{"order": 1, "weight": 75.0, "reps": 5, "rir": 10}], id="RIR_が_10"),
+            pytest.param([{"order": 1, "weight": 0.0, "reps": 5, "rir": 2}], id="重量が_0"),
+            pytest.param([{"order": 1, "weight": 75.0, "reps": 0, "rir": 2}], id="回数が_0"),
+            pytest.param([{"order": order, "weight": 75.0, "reps": 5, "rir": 2} for order in range(1, 51)], id="50件"),
+            pytest.param([{"order": 50, "weight": 75.0, "reps": 5, "rir": 2}], id="セット番号が_50"),
+        ],
+    )
+    def test_境界の値のセットは保存できる(self, today_client: TestClient, sets: list[dict[str, Any]]) -> None:
+        log, _ = _create_log_with_bench(today_client)
+
+        resp = today_client.put(f"/api/training-logs/exercises/{log['exercises'][0]['uid']}/sets", json={"sets": sets})
+
+        assert (resp.status_code, resp.json()["sets"]) == (200, sets)
+
 
 class TestGetTrainingLogs:
     @pytest.mark.parametrize(
-        ("path", "params", "status_code"),
+        ("path", "params", "status_code", "read_detail", "detail"),
         [
             pytest.param(
-                "/api/training-logs", {"from_date": "2026-11-01", "to_date": "2026-09-28"}, 400, id="カレンダーの逆順"
+                "/api/training-logs",
+                {"from_date": "2026-11-01", "to_date": "2026-09-28"},
+                400,
+                lambda body: body["detail"],
+                "開始日は終了日以前の日付にしてください",
+                id="カレンダーの逆順",
             ),
             pytest.param(
-                "/api/training-logs", {"from_date": "2026/09/28", "to_date": "2026-11-01"}, 422, id="カレンダーの形式"
+                "/api/training-logs",
+                {"from_date": "2026/09/28", "to_date": "2026-11-01"},
+                422,
+                lambda body: [error["loc"] for error in body["detail"]],
+                [["query", "from_date"]],
+                id="カレンダーの形式",
             ),
             pytest.param(
-                "/api/training-logs/export", {"from_date": "2026-10-14", "to_date": "2026-09-14"}, 400, id="CSV_の逆順"
+                "/api/training-logs/export",
+                {"from_date": "2026-10-14", "to_date": "2026-09-14"},
+                400,
+                lambda body: body["detail"],
+                "開始日は終了日以前の日付にしてください",
+                id="CSV_の逆順",
             ),
             pytest.param(
-                "/api/training-logs/export", {"from_date": "2026-09-14", "to_date": "10月14日"}, 422, id="CSV_の形式"
+                "/api/training-logs/export",
+                {"from_date": "2026-09-14", "to_date": "10月14日"},
+                422,
+                lambda body: [error["loc"] for error in body["detail"]],
+                [["query", "to_date"]],
+                id="CSV_の形式",
             ),
         ],
     )
     def test_開始日が終了日より後か日付の形式でなければ取得できない(
-        self, client: TestClient, path: str, params: dict[str, str], status_code: int
+        self,
+        client: TestClient,
+        path: str,
+        params: dict[str, str],
+        status_code: int,
+        read_detail: Callable[[Any], object],
+        detail: object,
     ) -> None:
         resp = client.get(path, params=params)
 
-        assert resp.status_code == status_code
+        assert (resp.status_code, read_detail(resp.json())) == (status_code, detail)
 
 
 class TestGetTrainingLog:

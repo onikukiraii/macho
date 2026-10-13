@@ -203,6 +203,7 @@ def upgrade() -> None:
             ["performed_exercises.id"],
         ),
         sa.PrimaryKeyConstraint("id"),
+        sa.UniqueConstraint("performed_exercise_id", "sort_order"),
     )
 
 

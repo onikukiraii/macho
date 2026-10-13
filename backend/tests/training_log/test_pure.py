@@ -130,9 +130,7 @@ class TestCalculateE1rm:
         assert calculate_e1rm(exercise_set, basis=basis) == expected
 
     def test_RIR_が空なら_0_として計算する(self) -> None:
-        assert calculate_e1rm(_set(1, 80.0, 5, None), basis=_bench()) == calculate_e1rm(
-            _set(1, 80.0, 5, 0), basis=_bench()
-        )
+        assert calculate_e1rm(_set(1, 80.0, 5, None), basis=_bench()) == 90.0
 
 
 class TestSelectTopSet:
@@ -158,6 +156,12 @@ class TestCalculateTargetWeight:
                 _planned(exercise_id=BENCH_ID, target_percent=50.0),
                 75.0,
                 id="ちょうど半分は切り上げる",
+            ),
+            pytest.param(
+                _bench(training_max=147.0),
+                _planned(exercise_id=BENCH_ID, target_percent=50.0),
+                72.5,
+                id="半分に届かなければ切り下げる",
             ),
         ],
     )
@@ -305,13 +309,27 @@ class TestListDayStatuses:
             34: DayStatus.pending,
         }
 
+    def test_記録した_Day_の間で記録の無い_Day_は未実施になる(self) -> None:
+        statuses = list_day_statuses(_schedule([3]), recorded_day_ids={11, 13})
+
+        assert statuses == {11: DayStatus.done, 12: DayStatus.missed, 13: DayStatus.done}
+
 
 class TestBuildExportCsv:
     def test_セットごとに10列の行を出し目標重量は記録の日付の_TM_で計算する(self) -> None:
-        planned = _planned(exercise_id=BENCH_ID, target_rpe=7.5)
-        week = ProgramWeek(week=2, label="ブロックA", days=())
-        day = ProgramDay(id=24, uid="day-2-4", day=4, weekday=Weekday.fri, planned_exercises=(planned,))
-        scheduled_day = ScheduledDay(week=week, day=day, guide_date=date(2026, 10, 9))
+        planned = _planned(exercise_id=BENCH_ID, target_rpe=8.0)
+        scheduled_days = {
+            24: ScheduledDay(
+                week=ProgramWeek(week=2, label="ブロックA", days=()),
+                day=ProgramDay(id=24, uid="day-2-4", day=4, weekday=Weekday.fri, planned_exercises=(planned,)),
+                guide_date=date(2026, 10, 9),
+            ),
+            31: ScheduledDay(
+                week=ProgramWeek(week=3, label="ブロックA", days=()),
+                day=ProgramDay(id=31, uid="day-3-1", day=1, weekday=Weekday.mon, planned_exercises=(planned,)),
+                guide_date=date(2026, 10, 12),
+            ),
+        }
         logs = [
             _log(
                 id=1,
@@ -329,7 +347,8 @@ class TestBuildExportCsv:
             _log(
                 id=2,
                 on=date(2026, 10, 13),
-                exercises=(_performed(id=2, exercise_id=BENCH_ID, sets=(_set(1, 77.5, 5, 2),), planned_id=None),),
+                program_day_id=31,
+                exercises=(_performed(id=2, exercise_id=BENCH_ID, sets=(_set(1, 77.5, 5, 2),), planned_id=planned.id),),
             ),
         ]
         bases_by_date = {
@@ -338,12 +357,12 @@ class TestBuildExportCsv:
         }
 
         csv_text = build_export_csv(
-            logs, from_date=date(2026, 10, 1), bases_by_date=bases_by_date, scheduled_days={24: scheduled_day}
+            logs, from_date=date(2026, 10, 1), bases_by_date=bases_by_date, scheduled_days=scheduled_days
         )
 
         assert csv_text.splitlines() == [
             "日付,Day,種目,重量,回数,RIR,e1RM,予定のレップ,目標RPE,目標重量",
-            "2026-10-09,第2週 Day4,ベンチプレス,75,5,2,88.1,5,7.5,75",
-            "2026-10-09,第2週 Day4,ベンチプレス,75,5,,84.4,5,7.5,75",
-            "2026-10-13,,ベンチプレス,77.5,5,2,91.1,,,",
+            "2026-10-09,第2週 Day4,ベンチプレス,75,5,2,88.1,5,8,75",
+            "2026-10-09,第2週 Day4,ベンチプレス,75,5,,84.4,5,8,75",
+            "2026-10-13,第3週 Day1,ベンチプレス,77.5,5,2,91.1,5,8,77.5",
         ]

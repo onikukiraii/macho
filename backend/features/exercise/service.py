@@ -134,9 +134,8 @@ def is_week_evaluated(repo: ExerciseRepository, *, week_start: date) -> bool:
 
 
 def record_weekly_evaluation(
-    repo: ExerciseRepository, *, week_start: date, updates: Sequence[TrainingMaxUpdate]
+    repo: ExerciseRepository, *, week_start: date, effective_at: datetime, updates: Sequence[TrainingMaxUpdate]
 ) -> None:
-    effective_at = datetime.now(UTC)
     repo.save_weekly_evaluation(
         week_start=week_start,
         training_maxes=[

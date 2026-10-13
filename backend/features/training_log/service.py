@@ -1,7 +1,9 @@
 from collections.abc import Iterable, Sequence
-from datetime import date, timedelta
+from datetime import date
 from uuid import uuid4
+from zoneinfo import ZoneInfo
 
+from common.config import settings
 from common.errors import Conflict, NotFound
 from features.exercise import service as exercise_service
 from features.exercise.protocol import ExerciseRepository
@@ -13,12 +15,16 @@ from features.training_log._pure import (
     build_export_csv,
     build_previous_result,
     calculate_next_exercise_order,
+    calculate_next_week_start_at,
     calculate_target_weight,
+    calculate_week_end,
     evaluate_week,
     find_planned_exercise,
     find_week_to_evaluate,
+    format_day_label,
     list_day_options,
     list_day_statuses,
+    list_export_dates,
     list_top_sets,
     validate_period,
     validate_training_log_date,
@@ -49,7 +55,10 @@ def list_training_logs(
 ) -> list[TrainingLogSummary]:
     validate_period(from_date=from_date, to_date=to_date)
     return _summarize(
-        repo.list_between(from_date, to_date), exercise_repo=exercise_repo, program_repo=program_repo, on=to_date
+        repo.list_between(from_date=from_date, to_date=to_date),
+        exercise_repo=exercise_repo,
+        program_repo=program_repo,
+        on=to_date,
     )
 
 
@@ -94,7 +103,7 @@ def create_training_log(
     validate_training_log_date(on, today=today)
     scheduled_day = None if program_day_uid is None else _find_scheduled_day(program_repo, uid=program_day_uid, on=on)
     # 記録の作成より先に評価を commit する。記録の作成が失敗しても TM の更新を取りこぼさない
-    updates = _evaluate_previous_week(repo, exercise_repo=exercise_repo, program_repo=program_repo, on=on, today=today)
+    updates = _evaluate_previous_week(repo, exercise_repo=exercise_repo, program_repo=program_repo, on=on)
     planned_exercises = () if scheduled_day is None else scheduled_day.day.planned_exercises
     training_log = repo.create(
         uid=str(uuid4()),
@@ -208,7 +217,7 @@ def export_training_logs(
     validate_period(from_date=from_date, to_date=to_date)
     # 期間より前の記録も読むのは、期間の最初の記録の前回実績からダブルプログレッションの目標重量を出すため
     training_logs = repo.list_on_or_before(to_date)
-    exported_dates = sorted({training_log.date for training_log in training_logs if training_log.date >= from_date})
+    exported_dates = list_export_dates(training_logs, from_date=from_date)
     return build_export_csv(
         training_logs,
         from_date=from_date,
@@ -219,7 +228,7 @@ def export_training_logs(
 
 def count_export_sets(repo: TrainingLogRepository, *, from_date: date, to_date: date) -> int:
     validate_period(from_date=from_date, to_date=to_date)
-    return repo.count_sets_between(from_date, to_date)
+    return repo.count_sets_between(from_date=from_date, to_date=to_date)
 
 
 def _evaluate_previous_week(
@@ -228,7 +237,6 @@ def _evaluate_previous_week(
     exercise_repo: ExerciseRepository,
     program_repo: ProgramRepository,
     on: date,
-    today: date,
 ) -> tuple[TrainingMaxUpdate, ...]:
     latest = repo.get_latest()
     if latest is None:
@@ -241,16 +249,26 @@ def _evaluate_previous_week(
     program = program_service.get_program_in_progress_on(program_repo, on=latest.date)
     if program is None or not program.tm_auto_update:
         return ()
+    week_end = calculate_week_end(week_start)
     updates = evaluate_week(
-        repo.list_between(week_start, week_start + timedelta(days=6)),
-        bases=exercise_service.get_calculation_bases(exercise_repo, on=today),
+        repo.list_between(from_date=week_start, to_date=week_end),
+        bases=exercise_service.get_calculation_bases(exercise_repo, on=week_end),
     )
     try:
-        exercise_service.record_weekly_evaluation(exercise_repo, week_start=week_start, updates=updates)
+        exercise_service.record_weekly_evaluation(
+            exercise_repo,
+            week_start=week_start,
+            effective_at=calculate_next_week_start_at(week_start, timezone=ZoneInfo(settings.app_timezone)),
+            updates=updates,
+        )
     except Conflict:
         # 並行した記録の作成が同じ週を先に評価した。TM はそちらで更新済みなので、評価済みとして記録の作成へ進む
         return ()
     return tuple(updates)
+
+
+def format_scheduled_day_label(scheduled_day: ScheduledDay | None) -> str | None:
+    return None if scheduled_day is None else format_day_label(scheduled_day)
 
 
 def _summarize(

@@ -1,4 +1,5 @@
 import datetime as dt
+from collections.abc import Sequence
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Response
@@ -8,7 +9,6 @@ from dependencies import get_exercise_repository, get_program_repository, get_to
 from features.exercise.protocol import ExerciseRepository
 from features.program.protocol import ProgramRepository
 from features.training_log import service
-from features.training_log._pure import format_day_label
 from features.training_log.dto import (
     DayOptionResponse,
     DayOptionsResponse,
@@ -34,11 +34,12 @@ from features.training_log.dto import (
 )
 from features.training_log.protocol import TrainingLogRepository
 from features.training_log.types import (
+    DayOption,
     ExerciseHistoryRecord,
     ExerciseSet,
     PerformedExerciseDetail,
     ProgramProgress,
-    ScheduledDay,
+    TrainingLogCreated,
     TrainingLogDetail,
     TrainingLogSummary,
 )
@@ -78,21 +79,7 @@ def get_latest_training_log(
 @router.get("/day-options")
 def get_day_options(repo: TrainingLogRepositoryDep, program_repo: ProgramRepositoryDep) -> DayOptionsResponse:
     options = service.get_day_options(repo, program_repo=program_repo)
-    return DayOptionsResponse(
-        options=[
-            DayOptionResponse(
-                program_day_uid=option.scheduled_day.day.uid,
-                week=option.scheduled_day.week.week,
-                week_label=option.scheduled_day.week.label,
-                day=option.scheduled_day.day.day,
-                weekday=option.scheduled_day.day.weekday,
-                guide_date=option.scheduled_day.guide_date,
-                is_next=option.is_next,
-                last_recorded_on=option.last_recorded_on,
-            )
-            for option in options
-        ]
-    )
+    return _to_day_options_response(options)
 
 
 @router.get("/program-progress")
@@ -170,13 +157,7 @@ def create_training_log(
         raise HTTPException(404, "Day が見つかりません") from e
     except BusinessRuleViolation as e:
         raise HTTPException(400, str(e)) from e
-    return TrainingLogCreatedResponse(
-        uid=created.training_log.uid,
-        training_max_updates=[
-            TrainingMaxUpdateResponse(exercise_name=update.exercise_name, before=update.before, after=update.after)
-            for update in created.training_max_updates
-        ],
-    )
+    return _to_created_response(created)
 
 
 @router.put("/exercises/{performed_uid}")
@@ -215,10 +196,7 @@ def update_sets(
             exercise_repo=exercise_repo,
             program_repo=program_repo,
             performed_uid=performed_uid,
-            sets=[
-                ExerciseSet(order=params_set.order, weight=params_set.weight, reps=params_set.reps, rir=params_set.rir)
-                for params_set in params.sets
-            ],
+            sets=_to_exercise_sets(params),
         )
     except NotFound as e:
         raise HTTPException(404, "種目が見つかりません") from e
@@ -278,21 +256,52 @@ def create_performed_exercise(
     return _to_detail_response(detail)
 
 
+def _to_exercise_sets(params: SetsReplaceParams) -> list[ExerciseSet]:
+    return [
+        ExerciseSet(order=params_set.order, weight=params_set.weight, reps=params_set.reps, rir=params_set.rir)
+        for params_set in params.sets
+    ]
+
+
+def _to_day_options_response(options: Sequence[DayOption]) -> DayOptionsResponse:
+    return DayOptionsResponse(
+        options=[
+            DayOptionResponse(
+                program_day_uid=option.scheduled_day.day.uid,
+                week=option.scheduled_day.week.week,
+                week_label=option.scheduled_day.week.label,
+                day=option.scheduled_day.day.day,
+                weekday=option.scheduled_day.day.weekday,
+                guide_date=option.scheduled_day.guide_date,
+                is_next=option.is_next,
+                last_recorded_on=option.last_recorded_on,
+            )
+            for option in options
+        ]
+    )
+
+
+def _to_created_response(created: TrainingLogCreated) -> TrainingLogCreatedResponse:
+    return TrainingLogCreatedResponse(
+        uid=created.training_log.uid,
+        training_max_updates=[
+            TrainingMaxUpdateResponse(exercise_name=update.exercise_name, before=update.before, after=update.after)
+            for update in created.training_max_updates
+        ],
+    )
+
+
 def _to_set_response(exercise_set: ExerciseSet) -> SetResponse:
     return SetResponse(
         order=exercise_set.order, weight=exercise_set.weight, reps=exercise_set.reps, rir=exercise_set.rir
     )
 
 
-def _to_day_label(scheduled_day: ScheduledDay | None) -> str | None:
-    return None if scheduled_day is None else format_day_label(scheduled_day)
-
-
 def _to_summary_response(summary: TrainingLogSummary) -> TrainingLogSummaryResponse:
     return TrainingLogSummaryResponse(
         uid=summary.training_log.uid,
         date=summary.training_log.date,
-        day_label=_to_day_label(summary.scheduled_day),
+        day_label=service.format_scheduled_day_label(summary.scheduled_day),
         week_label=None if summary.scheduled_day is None else summary.scheduled_day.week.label,
         top_sets=[
             TopSetResponse(
@@ -341,7 +350,7 @@ def _to_detail_response(detail: TrainingLogDetail) -> TrainingLogDetailResponse:
     return TrainingLogDetailResponse(
         uid=detail.training_log.uid,
         date=detail.training_log.date,
-        day_label=_to_day_label(scheduled_day),
+        day_label=service.format_scheduled_day_label(scheduled_day),
         week_label=None if scheduled_day is None else scheduled_day.week.label,
         guide_date=None if scheduled_day is None else scheduled_day.guide_date,
         memo=detail.training_log.memo,
@@ -353,7 +362,7 @@ def _to_history_response(record: ExerciseHistoryRecord) -> ExerciseHistoryEntryR
     return ExerciseHistoryEntryResponse(
         training_log_uid=record.entry.training_log_uid,
         date=record.entry.date,
-        day_label=_to_day_label(record.scheduled_day),
+        day_label=service.format_scheduled_day_label(record.scheduled_day),
         sets=[_to_set_response(exercise_set) for exercise_set in record.entry.sets],
     )
 

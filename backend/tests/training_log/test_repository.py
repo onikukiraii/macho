@@ -1,9 +1,11 @@
 from datetime import date
 
+import pytest
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from common.db.entities import ExerciseSetRow, PerformedExerciseRow
+from common.errors import Conflict
 from features.exercise.repository import DbExerciseRepository
 from features.exercise.types import ExerciseFields
 from features.training_log.repository import DbTrainingLogRepository
@@ -48,6 +50,23 @@ class TestReplaceSets:
             ExerciseSet(order=3, weight=77.5, reps=4, rir=0),
         )
 
+    def test_同じ番号のセットは保存できず前のセットが残る(self, db_session: Session) -> None:
+        repo = DbTrainingLogRepository(db_session)
+        _create_log(db_session)
+        repo.replace_sets("performed", sets=[ExerciseSet(order=1, weight=75.0, reps=5, rir=2)])
+
+        with pytest.raises(Conflict):
+            repo.replace_sets(
+                "performed",
+                sets=[
+                    ExerciseSet(order=1, weight=77.5, reps=5, rir=1),
+                    ExerciseSet(order=1, weight=77.5, reps=4, rir=0),
+                ],
+            )
+
+        db_session.expire_all()
+        assert repo.get("log").exercises[0].sets == (ExerciseSet(order=1, weight=75.0, reps=5, rir=2),)
+
     def test_セットをすべて消して保存すると読み直してもセットは無い(self, db_session: Session) -> None:
         repo = DbTrainingLogRepository(db_session)
         _create_log(db_session)
@@ -60,14 +79,25 @@ class TestReplaceSets:
 
 
 class TestDelete:
-    def test_削除すると種目とセットも消えカレンダーに出ない(self, db_session: Session) -> None:
+    def test_削除すると種目とセットも消えカレンダーに出ず別の記録は残る(self, db_session: Session) -> None:
         repo = DbTrainingLogRepository(db_session)
-        _create_log(db_session)
+        log = _create_log(db_session)
         repo.replace_sets("performed", sets=[ExerciseSet(order=1, weight=75.0, reps=5, rir=2)])
+        repo.create(
+            uid="other",
+            date=date(2026, 10, 9),
+            program_day_id=None,
+            exercises=[
+                NewPerformedExercise(
+                    uid="other-performed", exercise_id=log.exercises[0].exercise_id, planned_exercise_id=None, order=1
+                )
+            ],
+        )
+        repo.replace_sets("other-performed", sets=[ExerciseSet(order=1, weight=72.5, reps=5, rir=2)])
 
         repo.delete("log")
 
         performed_count = db_session.execute(select(func.count()).select_from(PerformedExerciseRow)).scalar_one()
         set_count = db_session.execute(select(func.count()).select_from(ExerciseSetRow)).scalar_one()
-        calendar = repo.list_between(date(2026, 9, 28), date(2026, 11, 1))
-        assert (calendar, performed_count, set_count) == ([], 0, 0)
+        calendar = repo.list_between(from_date=date(2026, 9, 28), to_date=date(2026, 11, 1))
+        assert ([training_log.uid for training_log in calendar], performed_count, set_count) == (["other"], 1, 1)

@@ -1,3 +1,4 @@
+import csv
 from contextlib import AbstractContextManager, nullcontext
 from datetime import UTC, date, datetime
 
@@ -14,8 +15,10 @@ from features.program.types import NewPlannedExercise, NewProgram, NewProgramDay
 from features.training_log.repository import DbTrainingLogRepository
 from features.training_log.service import (
     add_performed_exercise,
+    count_export_sets,
     create_training_log,
     delete_training_log,
+    export_training_logs,
     get_day_options,
     get_training_log,
     list_exercise_history,
@@ -297,7 +300,7 @@ class TestCreateTrainingLog:
             sets_by_exercise=[(bench, [ExerciseSet(order=1, weight=77.5, reps=5, rir=2)])],
         )
 
-        created = create_training_log(
+        create_training_log(
             repo,
             exercise_repo=exercise_repo,
             program_repo=program_repo,
@@ -307,10 +310,34 @@ class TestCreateTrainingLog:
         )
 
         latest = get_exercise(exercise_repo, uid=bench.exercise.uid).training_max_history[0]
+        assert (latest.value, latest.source) == (90.5, TrainingMaxSource.auto)
+
+    def test_TM_を上げると種目と前後の値をお知らせに返す(
+        self, repo: DbTrainingLogRepository, exercise_repo: DbExerciseRepository, program_repo: DbProgramRepository
+    ) -> None:
+        bench = _exercise(exercise_repo, "ベンチプレス")
+        _set_training_max(exercise_repo, bench, 88.0)
+        _program(program_repo, planned=())
+        _record(
+            repo,
+            exercise_repo,
+            program_repo,
+            on=date(2026, 10, 6),
+            sets_by_exercise=[(bench, [ExerciseSet(order=1, weight=77.5, reps=5, rir=2)])],
+        )
+
+        created = create_training_log(
+            repo,
+            exercise_repo=exercise_repo,
+            program_repo=program_repo,
+            on=date(2026, 10, 13),
+            program_day_uid=None,
+            today=date(2026, 10, 13),
+        )
+
         assert [(update.exercise_name, update.before, update.after) for update in created.training_max_updates] == [
             ("ベンチプレス", 88.0, 90.5)
         ]
-        assert (latest.value, latest.source) == (90.5, TrainingMaxSource.auto)
 
     def test_前の週に複数の種目が届いていればすべての種目の_TM_を上げる(
         self, repo: DbTrainingLogRepository, exercise_repo: DbExerciseRepository, program_repo: DbProgramRepository
@@ -372,6 +399,115 @@ class TestCreateTrainingLog:
             ("ベンチプレス", 88.0, 90.5)
         ]
 
+    def test_最も新しい記録の週だけを判定しそれより前の週で届いていても_TM_を上げない(
+        self, repo: DbTrainingLogRepository, exercise_repo: DbExerciseRepository, program_repo: DbProgramRepository
+    ) -> None:
+        bench = _exercise(exercise_repo, "ベンチプレス")
+        _set_training_max(exercise_repo, bench, 88.0)
+        _program(program_repo, planned=())
+        _record(
+            repo,
+            exercise_repo,
+            program_repo,
+            on=date(2026, 9, 29),
+            sets_by_exercise=[(bench, [ExerciseSet(order=1, weight=77.5, reps=5, rir=2)])],
+        )
+        _record(
+            repo,
+            exercise_repo,
+            program_repo,
+            on=date(2026, 10, 6),
+            sets_by_exercise=[(bench, [ExerciseSet(order=1, weight=70.0, reps=5, rir=2)])],
+        )
+
+        created = create_training_log(
+            repo,
+            exercise_repo=exercise_repo,
+            program_repo=program_repo,
+            on=date(2026, 10, 13),
+            program_day_uid=None,
+            today=date(2026, 10, 13),
+        )
+
+        assert created.training_max_updates == ()
+
+    def test_日曜の記録のあとに月曜の記録を作ると日曜までの週を判定する(
+        self, repo: DbTrainingLogRepository, exercise_repo: DbExerciseRepository, program_repo: DbProgramRepository
+    ) -> None:
+        bench = _exercise(exercise_repo, "ベンチプレス")
+        _set_training_max(exercise_repo, bench, 88.0)
+        _program(program_repo, planned=())
+        _record(
+            repo,
+            exercise_repo,
+            program_repo,
+            on=date(2026, 10, 11),
+            sets_by_exercise=[(bench, [ExerciseSet(order=1, weight=77.5, reps=5, rir=2)])],
+        )
+
+        created = create_training_log(
+            repo,
+            exercise_repo=exercise_repo,
+            program_repo=program_repo,
+            on=date(2026, 10, 12),
+            program_day_uid=None,
+            today=date(2026, 10, 12),
+        )
+
+        assert [(update.before, update.after) for update in created.training_max_updates] == [(88.0, 90.5)]
+
+    def test_評価した週の翌週の月曜からの記録は上げた_TM_で目標重量を計算する(
+        self, repo: DbTrainingLogRepository, exercise_repo: DbExerciseRepository, program_repo: DbProgramRepository
+    ) -> None:
+        bench = _exercise(exercise_repo, "ベンチプレス")
+        _set_training_max(exercise_repo, bench, 88.0)
+        program = _program(program_repo, planned=(_planned(bench, order=1, target_rpe=8.0),))
+        _record(
+            repo,
+            exercise_repo,
+            program_repo,
+            on=date(2026, 10, 9),
+            sets_by_exercise=[(bench, [ExerciseSet(order=1, weight=77.5, reps=5, rir=2)])],
+        )
+
+        created = create_training_log(
+            repo,
+            exercise_repo=exercise_repo,
+            program_repo=program_repo,
+            on=date(2026, 10, 12),
+            program_day_uid=_day_uid(program, week=3, day=1),
+            today=date(2026, 10, 14),
+        )
+        detail = get_training_log(
+            repo, exercise_repo=exercise_repo, program_repo=program_repo, uid=created.training_log.uid
+        )
+
+        assert detail.exercises[0].target_weight == 77.5
+
+    def test_記録の日付に進行中のプログラムが無ければ_TM_を上げない(
+        self, repo: DbTrainingLogRepository, exercise_repo: DbExerciseRepository, program_repo: DbProgramRepository
+    ) -> None:
+        bench = _exercise(exercise_repo, "ベンチプレス")
+        _set_training_max(exercise_repo, bench, 88.0)
+        _record(
+            repo,
+            exercise_repo,
+            program_repo,
+            on=date(2026, 10, 6),
+            sets_by_exercise=[(bench, [ExerciseSet(order=1, weight=77.5, reps=5, rir=2)])],
+        )
+
+        created = create_training_log(
+            repo,
+            exercise_repo=exercise_repo,
+            program_repo=program_repo,
+            on=date(2026, 10, 13),
+            program_day_uid=None,
+            today=date(2026, 10, 13),
+        )
+
+        assert created.training_max_updates == ()
+
     def test_新しい週の最初の記録を削除して作り直しても_TM_は1回しか上がらない(
         self, repo: DbTrainingLogRepository, exercise_repo: DbExerciseRepository, program_repo: DbProgramRepository
     ) -> None:
@@ -383,7 +519,7 @@ class TestCreateTrainingLog:
             exercise_repo,
             program_repo,
             on=date(2026, 10, 6),
-            sets_by_exercise=[(bench, [ExerciseSet(order=1, weight=77.5, reps=5, rir=2)])],
+            sets_by_exercise=[(bench, [ExerciseSet(order=1, weight=85.0, reps=5, rir=2)])],
         )
         first = _record(repo, exercise_repo, program_repo, on=date(2026, 10, 13), sets_by_exercise=[])
         delete_training_log(repo, uid=first.training_log.uid)
@@ -446,7 +582,9 @@ class TestCreateTrainingLog:
             on=date(2026, 10, 6),
             sets_by_exercise=[(bench, [ExerciseSet(order=1, weight=77.5, reps=5, rir=2)])],
         )
-        record_weekly_evaluation(exercise_repo, week_start=date(2026, 10, 5), updates=[])
+        record_weekly_evaluation(
+            exercise_repo, week_start=date(2026, 10, 5), effective_at=datetime(2026, 10, 11, 15, tzinfo=UTC), updates=[]
+        )
 
         created = create_training_log(
             repo,
@@ -556,6 +694,7 @@ class TestListTrainingLogs:
                 (squat, [ExerciseSet(order=1, weight=105.0, reps=5, rir=1)]),
             ],
         )
+        _record(repo, exercise_repo, program_repo, on=date(2026, 11, 1), sets_by_exercise=[])
         _record(repo, exercise_repo, program_repo, on=date(2026, 11, 2), sets_by_exercise=[])
 
         summaries = list_training_logs(
@@ -576,6 +715,7 @@ class TestListTrainingLogs:
         ] == [
             (date(2026, 9, 28), None, [("スクワット", 100.0)]),
             (date(2026, 10, 9), 4, [("ベンチプレス", 77.5), ("スクワット", 105.0)]),
+            (date(2026, 11, 1), None, []),
         ]
 
 
@@ -591,14 +731,6 @@ class TestListExerciseHistory:
             ExerciseSet(order=1, weight=67.5, reps=5, rir=2),
             ExerciseSet(order=2, weight=67.5, reps=4, rir=1),
         ]
-        _record(repo, exercise_repo, program_repo, on=date(2026, 10, 2), sets_by_exercise=[(pause_bench, older_sets)])
-        _record(
-            repo,
-            exercise_repo,
-            program_repo,
-            on=date(2026, 10, 6),
-            sets_by_exercise=[(bench, [ExerciseSet(order=1, weight=77.5, reps=5, rir=2)])],
-        )
         _record(
             repo,
             exercise_repo,
@@ -607,6 +739,14 @@ class TestListExerciseHistory:
             program_day_uid=_day_uid(program, week=2, day=4),
             sets_by_exercise=[(pause_bench, newer_sets)],
         )
+        _record(
+            repo,
+            exercise_repo,
+            program_repo,
+            on=date(2026, 10, 6),
+            sets_by_exercise=[(bench, [ExerciseSet(order=1, weight=77.5, reps=5, rir=2)])],
+        )
+        _record(repo, exercise_repo, program_repo, on=date(2026, 10, 2), sets_by_exercise=[(pause_bench, older_sets)])
 
         history = list_exercise_history(
             repo, exercise_repo=exercise_repo, program_repo=program_repo, exercise_uid=pause_bench.exercise.uid
@@ -620,6 +760,90 @@ class TestListExerciseHistory:
             )
             for record in history
         ] == [(date(2026, 10, 9), 4, tuple(newer_sets)), (date(2026, 10, 2), None, tuple(older_sets))]
+
+
+class TestExportTrainingLogs:
+    def test_期間より前の記録を前回にしてダブルプログレッションの目標重量を出す(
+        self, repo: DbTrainingLogRepository, exercise_repo: DbExerciseRepository, program_repo: DbProgramRepository
+    ) -> None:
+        lat_pulldown = _exercise(exercise_repo, "ラットプルダウン", e1rm_divisor=33.3)
+        planned = NewPlannedExercise(
+            exercise_id=lat_pulldown.exercise.id,
+            order=1,
+            sets=3,
+            reps=10,
+            reps_max=12,
+            target_rpe=None,
+            target_percent=None,
+        )
+        program = _program(program_repo, planned=(planned,))
+        _record(
+            repo,
+            exercise_repo,
+            program_repo,
+            on=date(2026, 10, 2),
+            sets_by_exercise=[
+                (lat_pulldown, [ExerciseSet(order=order, weight=55.0, reps=12, rir=2) for order in (1, 2, 3)])
+            ],
+        )
+        created = create_training_log(
+            repo,
+            exercise_repo=exercise_repo,
+            program_repo=program_repo,
+            on=date(2026, 10, 5),
+            program_day_uid=_day_uid(program, week=2, day=1),
+            today=date(2026, 10, 5),
+        )
+        replace_sets(
+            repo,
+            exercise_repo=exercise_repo,
+            program_repo=program_repo,
+            performed_uid=created.training_log.exercises[0].uid,
+            sets=[ExerciseSet(order=1, weight=57.5, reps=10, rir=2)],
+        )
+
+        csv_text = export_training_logs(
+            repo,
+            exercise_repo=exercise_repo,
+            program_repo=program_repo,
+            from_date=date(2026, 10, 5),
+            to_date=date(2026, 10, 11),
+        )
+
+        assert [row[-1] for row in csv.reader(csv_text.splitlines()[1:])] == ["57.5"]
+
+
+class TestCountExportSets:
+    def test_CSV_に出す行と同じ件数を返す(
+        self, repo: DbTrainingLogRepository, exercise_repo: DbExerciseRepository, program_repo: DbProgramRepository
+    ) -> None:
+        bench = _exercise(exercise_repo, "ベンチプレス")
+        for on, set_count in [
+            (date(2026, 9, 30), 1),
+            (date(2026, 10, 1), 2),
+            (date(2026, 10, 11), 1),
+            (date(2026, 10, 12), 1),
+        ]:
+            _record(
+                repo,
+                exercise_repo,
+                program_repo,
+                on=on,
+                sets_by_exercise=[
+                    (bench, [ExerciseSet(order=order, weight=75.0, reps=5, rir=2) for order in range(1, set_count + 1)])
+                ],
+            )
+
+        count = count_export_sets(repo, from_date=date(2026, 10, 1), to_date=date(2026, 10, 11))
+        csv_text = export_training_logs(
+            repo,
+            exercise_repo=exercise_repo,
+            program_repo=program_repo,
+            from_date=date(2026, 10, 1),
+            to_date=date(2026, 10, 11),
+        )
+
+        assert (count, len(csv_text.splitlines()) - 1) == (3, 3)
 
 
 class _EvaluationRacingExerciseRepository(DbExerciseRepository):

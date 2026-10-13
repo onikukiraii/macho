@@ -1,6 +1,6 @@
 from datetime import date
 
-from sqlalchemy import Date, Float, ForeignKey, Integer, String
+from sqlalchemy import Date, Float, ForeignKey, Integer, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from common.db.entities.base import Base
@@ -43,6 +43,7 @@ class PerformedExerciseRow(Base):
 
 class ExerciseSetRow(Base):
     __tablename__ = "exercise_sets"
+    __table_args__ = (UniqueConstraint("performed_exercise_id", "sort_order"),)
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     performed_exercise_id: Mapped[int] = mapped_column(ForeignKey("performed_exercises.id"), nullable=False)

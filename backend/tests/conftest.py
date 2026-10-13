@@ -1,8 +1,10 @@
 import os
 
 os.environ.setdefault("DATABASE_URL", "sqlite:///:memory:")
+os.environ.setdefault("VAPID_PRIVATE_KEY", "test-vapid-private-key")
+os.environ.setdefault("VAPID_SUBJECT", "mailto:test@example.com")
 
-from collections.abc import Callable, Generator  # noqa: E402
+from collections.abc import Generator  # noqa: E402
 from typing import Any  # noqa: E402
 
 import pytest  # noqa: E402
@@ -11,7 +13,7 @@ from sqlalchemy import create_engine, event  # noqa: E402
 from sqlalchemy.orm import Session, sessionmaker  # noqa: E402
 from sqlalchemy.pool import StaticPool  # noqa: E402
 
-from common.db.entities import Base, UserRow  # noqa: E402
+from common.db.entities import Base  # noqa: E402
 from dependencies import get_session  # noqa: E402
 from main import app  # noqa: E402
 
@@ -49,15 +51,3 @@ def client(db_session: Session) -> Generator[TestClient]:
     with TestClient(app) as c:
         yield c
     app.dependency_overrides.clear()
-
-
-@pytest.fixture()
-def create_user(db_session: Session) -> Callable[..., UserRow]:
-    def _factory(name: str = "テスト太郎", email: str = "test@example.com") -> UserRow:
-        row = UserRow(name=name, email=email)
-        db_session.add(row)
-        db_session.commit()
-        db_session.refresh(row)
-        return row
-
-    return _factory

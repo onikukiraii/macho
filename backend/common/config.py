@@ -1,3 +1,6 @@
+from pathlib import Path
+
+from pydantic import SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -8,12 +11,12 @@ class Settings(BaseSettings):
 
     cors_origins: list[str] = ["http://localhost:37173"]
 
-    s3_bucket: str = "app-local"
-    s3_endpoint_url: str | None = None
-    s3_region: str = "us-east-1"
+    app_timezone: str = "Asia/Tokyo"
 
-    llm_model: str = "claude-opus-5"
-    llm_max_tokens: int = 16000
+    vapid_private_key: SecretStr
+    vapid_subject: str
+
+    frontend_dist_dir: Path | None = None
 
     celery_broker_url: str = "redis://localhost:6379/0"
 

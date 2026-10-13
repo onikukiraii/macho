@@ -68,15 +68,17 @@ class TestCreate:
         repo = DbProgramRepository(db_session)
         exercise_id = _exercise_id(db_session)
 
-        created = repo.create(
+        repo.create(
             uid="p1",
             day_uids=["d1", "d2", "d3"],
             program=_program(name="増量期", start_date=date(2026, 9, 28), exercise_id=exercise_id),
         )
+        fetched = repo.get_latest()
 
-        assert [week.week for week in created.weeks] == [1, 2]
-        assert [day.day for day in created.weeks[0].days] == [1, 2]
-        assert [planned.order for planned in created.weeks[0].days[1].planned_exercises] == [1, 2]
+        assert fetched is not None
+        assert [week.week for week in fetched.weeks] == [1, 2]
+        assert [day.day for day in fetched.weeks[0].days] == [1, 2]
+        assert [planned.order for planned in fetched.weeks[0].days[1].planned_exercises] == [1, 2]
 
     def test_予定種目の全フィールドを入力のとおりに保存して取得できる(self, db_session: Session) -> None:
         repo = DbProgramRepository(db_session)

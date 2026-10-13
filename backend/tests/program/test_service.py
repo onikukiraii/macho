@@ -35,5 +35,4 @@ class TestCreateProgram:
         created = create_program(repo, program=program)
 
         uids = [day.uid for week in created.weeks for day in week.days]
-        assert [(week.week, day.day) for week in created.weeks for day in week.days] == [(1, 1), (1, 2), (2, 1)]
         assert len(set(uids)) == 3

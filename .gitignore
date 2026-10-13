@@ -215,3 +215,6 @@ __marimo__/
 /.claude/*
 !/.claude/settings.json
 !/.claude/rules/
+
+# 筋トレ履歴の移行元データ。個人データのためコミットしない
+/data/

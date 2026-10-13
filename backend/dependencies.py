@@ -12,6 +12,8 @@ from common.gateway.job_queue_celery import CeleryJobQueue
 from common.gateway.protocol import JobQueue
 from features.exercise.protocol import ExerciseRepository
 from features.exercise.repository import DbExerciseRepository
+from features.program.protocol import ProgramRepository
+from features.program.repository import DbProgramRepository
 from worker.app import celery_app
 
 
@@ -36,3 +38,7 @@ def get_job_queue() -> JobQueue:
 
 def get_exercise_repository(session: SessionDep) -> ExerciseRepository:
     return DbExerciseRepository(session)
+
+
+def get_program_repository(session: SessionDep) -> ProgramRepository:
+    return DbProgramRepository(session)

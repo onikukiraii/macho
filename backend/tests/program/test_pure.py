@@ -1,0 +1,48 @@
+from datetime import date
+
+import pytest
+
+from features.program._pure import calculate_guide_date, list_days_in_order
+from features.program.types import Program, ProgramDay, ProgramWeek, Weekday
+
+
+def _day(*, id: int, day: int, weekday: Weekday) -> ProgramDay:
+    return ProgramDay(id=id, uid=f"day-{id}", day=day, weekday=weekday, planned_exercises=())
+
+
+class TestCalculateGuideDate:
+    @pytest.mark.parametrize(
+        ("week", "weekday", "expected"),
+        [
+            (1, Weekday.mon, date(2026, 9, 28)),
+            (1, Weekday.sun, date(2026, 10, 4)),
+            (2, Weekday.wed, date(2026, 10, 7)),
+            (5, Weekday.fri, date(2026, 10, 30)),
+        ],
+    )
+    def test_開始日の週の月曜を起点に目安日を出す(self, week: int, weekday: Weekday, expected: date) -> None:
+        assert calculate_guide_date(date(2026, 9, 28), week=week, weekday=weekday) == expected
+
+
+class TestListDaysInOrder:
+    def test_週と_Day_の昇順に並べる(self) -> None:
+        program = Program(
+            id=1,
+            uid="p",
+            name="増量期",
+            start_date=date(2026, 9, 28),
+            tm_auto_update=True,
+            design_note="",
+            weeks=(
+                ProgramWeek(week=2, label="B", days=(_day(id=3, day=1, weekday=Weekday.mon),)),
+                ProgramWeek(
+                    week=1,
+                    label="A",
+                    days=(_day(id=2, day=2, weekday=Weekday.wed), _day(id=1, day=1, weekday=Weekday.mon)),
+                ),
+            ),
+        )
+
+        ordered = [(week.week, day.day) for week, day in list_days_in_order(program)]
+
+        assert ordered == [(1, 1), (1, 2), (2, 1)]

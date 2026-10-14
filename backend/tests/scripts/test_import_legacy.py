@@ -1,11 +1,11 @@
 import csv
 import io
 import logging
+from collections.abc import Sequence
 from datetime import UTC, date, datetime
 from pathlib import Path
 
 import pytest
-from openpyxl import Workbook
 from sqlalchemy.orm import Session
 
 from common.errors import Conflict
@@ -17,42 +17,22 @@ from features.program.types import Program, Weekday
 from features.training_log.repository import DbTrainingLogRepository
 from features.training_log.service import create_training_log
 from features.training_log.types import ExerciseSet, TrainingLog
-from scripts.import_legacy import InvalidLegacyFile, import_legacy_records, main, parse_training_csv
+from scripts.import_legacy import (
+    BULKING_PHASE_CSV,
+    CUTTING_PHASE_CSV,
+    DESIGN_NOTE_MD,
+    EXERCISE_MASTER_CSV,
+    TRAINING_LOGS_CSV,
+    InvalidLegacyFile,
+    import_legacy_records,
+    main,
+    parse_training_csv,
+)
 
 TODAY = date(2026, 10, 14)
-KINNIK_HEADER = [
-    "ユーザー",
-    "日付",
-    "部位",
-    "種目",
-    "グループセット名",
-    "グループセッションID",
-    "グループセットID",
-    "セット",
-    "重量",
-    "レップ数",
-    "RPE/RIR",
-    "種別",
-    "セットメモ",
-    "メモ",
-]
-PHASE_HEADER = (
-    "週",
-    "目安日",
-    "Day",
-    "種目",
-    "区分",
-    "セット",
-    "レップ",
-    "目標RPE",
-    "目標重量kg",
-    "実績重量kg",
-    "実績レップ",
-    "実績RIR",
-    "実績e1RM",
-    "前回実績",
-    "メモ",
-)
+TRAINING_COLUMNS = ("日付", "種目", "セット", "重量", "レップ数")
+MASTER_COLUMNS = ("種目", "区分", "係数")
+PHASE_COLUMNS = ("週", "目安日", "Day", "種目", "セット", "レップ", "目標RPE", "実績重量kg", "実績レップ", "実績RIR")
 MASTER = [
     ("スクワット", "SQ", 1),
     ("ベンチプレス", "BP", 1),
@@ -61,31 +41,12 @@ MASTER = [
     ("ルーマニアンDL", "DL", 0.75),
 ]
 DESIGN_NOTE = "- **構造**: ブロックピリオダイゼーション\n- **デロード**: 主種目セット半減"
-PROMPT = f"""# 保守プロンプト
-
-## 2. ファイル仕様
-
-- 設定シート
-
-## 3. プログラム設計仕様(意図を壊さないこと)
-
-{DESIGN_NOTE}
-
-## 4. 運用ルール
-
-- 毎回ジムで
-"""
 TEST_WEEK_REPS = (5, 3, 2, 1, 1, 1)
 TEST_WEEK_PERCENTS = [40.0, 60.0, 75.0, 85.0, 92.0, 100.0]
-TRAINING_CSV = "kinnik_CSV_training.csv"
-PROGRAM_XLSX = "BIG3プログラム管理.xlsx"
-MAINTENANCE_PROMPT = "BIG3プログラム管理_保守プロンプト.md"
 
 
-def _kinnik(
-    on: str, exercise: str, set_number: int, weight: str, reps: str, memo: str = "", kind: str = "0"
-) -> list[str]:
-    return ["利用者", on, "胸", exercise, "", "", "", str(set_number), weight, reps, "", kind, "", memo]
+def _training_row(on: str, exercise: str, set_number: int, weight: str, reps: str) -> list[str]:
+    return [on, exercise, str(set_number), weight, reps]
 
 
 def _phase(
@@ -93,7 +54,6 @@ def _phase(
     on: str,
     day: str,
     exercise: str,
-    category: str,
     *,
     sets: int = 3,
     reps: int = 5,
@@ -102,85 +62,42 @@ def _phase(
     actual_reps: int | None = None,
     actual_rir: int | None = None,
 ) -> tuple[object, ...]:
-    return (
-        week,
-        datetime.fromisoformat(on),
-        day,
-        exercise,
-        category,
-        sets,
-        reps,
-        rpe,
-        None,
-        actual_weight,
-        actual_reps,
-        actual_rir,
-        0,
-        "初回",
-        None,
-    )
+    return (week, on, day, exercise, sets, reps, rpe, actual_weight, actual_reps, actual_rir)
+
+
+def _write_csv(path: Path, header: Sequence[str], rows: Sequence[Sequence[object]]) -> None:
+    with path.open("w", encoding="utf-8", newline="") as f:
+        csv.writer(f).writerows([header, *rows])
 
 
 def _write_inputs(
     tmp_path: Path,
     *,
-    kinnik_rows: list[list[str]],
+    training_rows: list[list[str]],
     bulking_rows: list[tuple[object, ...]],
     cutting_rows: list[tuple[object, ...]] | None = None,
     master: list[tuple[str, str, float]] = MASTER,
-    prompt: str = PROMPT,
 ) -> None:
-    with (tmp_path / TRAINING_CSV).open("w", encoding="utf-8-sig", newline="") as f:
-        csv.writer(f).writerows([KINNIK_HEADER, *kinnik_rows])
-
-    workbook = Workbook()
-    settings_sheet = workbook.active
-    settings_sheet.title = "設定"
-    for row in [
-        ("BIG3プログラム 設定",),
-        (None,),
-        ("■ 種目マスタ(係数 = 本体e1RMに対する換算。青字は調整可)",),
-        *master,
-        (None,),
-        ("■ 実績ベストe1RM(本体換算・自動計算) → 設定値の更新判断に使う",),
-    ]:
-        settings_sheet.append(row)
-    for title, rows in [("減量期", cutting_rows or []), ("増量期", bulking_rows)]:
-        sheet = workbook.create_sheet(title)
-        for phase_row in [PHASE_HEADER, *rows]:
-            sheet.append(phase_row)
-        # 書式だけが残った末尾の空の行
-        sheet.cell(row=sheet.max_row + 1, column=2).number_format = "yyyy-mm-dd"
-    workbook.save(tmp_path / PROGRAM_XLSX)
-
-    (tmp_path / MAINTENANCE_PROMPT).write_text(prompt, encoding="utf-8")
+    _write_csv(tmp_path / TRAINING_LOGS_CSV, TRAINING_COLUMNS, training_rows)
+    _write_csv(tmp_path / EXERCISE_MASTER_CSV, MASTER_COLUMNS, master)
+    _write_csv(tmp_path / BULKING_PHASE_CSV, PHASE_COLUMNS, bulking_rows)
+    _write_csv(tmp_path / CUTTING_PHASE_CSV, PHASE_COLUMNS, cutting_rows or [])
+    (tmp_path / DESIGN_NOTE_MD).write_text(f"{DESIGN_NOTE}\n", encoding="utf-8")
 
 
 def _import(
     db_session: Session,
     tmp_path: Path,
     *,
-    kinnik_rows: list[list[str]],
+    training_rows: list[list[str]],
     bulking_rows: list[tuple[object, ...]],
     cutting_rows: list[tuple[object, ...]] | None = None,
     master: list[tuple[str, str, float]] = MASTER,
-    prompt: str = PROMPT,
 ) -> None:
     _write_inputs(
-        tmp_path,
-        kinnik_rows=kinnik_rows,
-        bulking_rows=bulking_rows,
-        cutting_rows=cutting_rows,
-        master=master,
-        prompt=prompt,
+        tmp_path, training_rows=training_rows, bulking_rows=bulking_rows, cutting_rows=cutting_rows, master=master
     )
-    import_legacy_records(
-        db_session,
-        training_csv=tmp_path / TRAINING_CSV,
-        program_xlsx=tmp_path / PROGRAM_XLSX,
-        maintenance_prompt=tmp_path / MAINTENANCE_PROMPT,
-        today=TODAY,
-    )
+    import_legacy_records(db_session, seed_dir=tmp_path, today=TODAY)
 
 
 def _exercise_names(db_session: Session) -> dict[int, str]:
@@ -202,23 +119,23 @@ def _day_id(program: Program, *, week: int, day: int) -> int:
 
 
 class TestImportLegacyRecords:
-    def test_KINNIK_の全セットが日付ごとの記録になり3つの種目名は対応する名前にまとまる(
+    def test_training_logs_の全セットが日付ごとの記録になり3つの種目名は対応する名前にまとまる(
         self, db_session: Session, tmp_path: Path
     ) -> None:
         _import(
             db_session,
             tmp_path,
-            kinnik_rows=[
-                _kinnik("2026-09-14", "ベンチプレス", 1, "80", "5"),
-                _kinnik("2026-09-14", "ベンチプレス", 2, "77.5", "6", kind="1"),
-                _kinnik("2026-09-14", "ルーマニアンデッドリフト", 1, "80", "6"),
-                _kinnik("2026-09-14", "ダンベルカール", 1, "10", "12"),
-                _kinnik("2026-09-14", "ダンベルカール", 2, "10", "10"),
-                _kinnik("2026-09-14", "ダンベルカール", 1, "8", "12"),
-                _kinnik("2026-09-16", "ポーズベンチプレス", 1, "65", "5"),
-                _kinnik("2026-09-16", "シーテッドレッグプレス", 1, "100", "8"),
+            training_rows=[
+                _training_row("2026-09-14", "ベンチプレス", 1, "80", "5"),
+                _training_row("2026-09-14", "ベンチプレス", 2, "77.5", "6"),
+                _training_row("2026-09-14", "ルーマニアンデッドリフト", 1, "80", "6"),
+                _training_row("2026-09-14", "ダンベルカール", 1, "10", "12"),
+                _training_row("2026-09-14", "ダンベルカール", 2, "10", "10"),
+                _training_row("2026-09-14", "ダンベルカール", 1, "8", "12"),
+                _training_row("2026-09-16", "ポーズベンチプレス", 1, "65", "5"),
+                _training_row("2026-09-16", "シーテッドレッグプレス", 1, "100", "8"),
             ],
-            bulking_rows=[_phase("1", "2026-09-28", "Day1 月", "スクワット", "SQ")],
+            bulking_rows=[_phase("1", "2026-09-28", "Day1 月", "スクワット")],
         )
 
         names = _exercise_names(db_session)
@@ -255,23 +172,23 @@ class TestImportLegacyRecords:
             ]
         )
 
-    def test_増量期シートが開始日と設計メモ付きのプログラムになり週と_Day_と予定種目がシートの順に並ぶ(
+    def test_bulking_phase_が開始日と設計メモ付きのプログラムになり週と_Day_と予定種目が行の順に並ぶ(
         self, db_session: Session, tmp_path: Path
     ) -> None:
         test_days = [("2026-10-19", "テスト 月", "スクワット"), ("2026-10-21", "テスト 水", "ベンチプレス")]
         _import(
             db_session,
             tmp_path,
-            kinnik_rows=[_kinnik("2026-09-14", "ラットプルダウン", 1, "55", "10")],
+            training_rows=[_training_row("2026-09-14", "ラットプルダウン", 1, "55", "10")],
             bulking_rows=[
-                _phase("1", "2026-09-28", "Day1 月", "スクワット", "SQ", sets=4, reps=5, rpe=7.5),
-                _phase("1", "2026-09-28", "Day1 月", "ラットプルダウン", "補助", sets=2, reps=10, rpe=None),
-                _phase("1", "2026-10-01", "Day3 木", "ラットプルダウン", "補助", sets=3, reps=12, rpe=None),
-                _phase("1", "2026-10-01", "Day3 木", "デッドリフト", "DL", sets=4, reps=3, rpe=7.5),
-                _phase("2 デロード", "2026-10-05", "Day1 月", "スクワット", "SQ", sets=2, reps=5, rpe=6),
-                _phase("3", "2026-10-12", "Day1 月", "ベンチプレス", "BP", sets=3, reps=8, rpe=7),
+                _phase("1", "2026-09-28", "Day1 月", "スクワット", sets=4, reps=5, rpe=7.5),
+                _phase("1", "2026-09-28", "Day1 月", "ラットプルダウン", sets=2, reps=10, rpe=None),
+                _phase("1", "2026-10-01", "Day3 木", "ラットプルダウン", sets=3, reps=12, rpe=None),
+                _phase("1", "2026-10-01", "Day3 木", "デッドリフト", sets=4, reps=3, rpe=7.5),
+                _phase("2 デロード", "2026-10-05", "Day1 月", "スクワット", sets=2, reps=5, rpe=6),
+                _phase("3", "2026-10-12", "Day1 月", "ベンチプレス", sets=3, reps=8, rpe=7),
                 *[
-                    _phase("4 テスト", on, day, exercise, "SQ", sets=1, reps=reps, rpe=None)
+                    _phase("4 テスト", on, day, exercise, sets=1, reps=reps, rpe=None)
                     for on, day, exercise in [*test_days, ("2026-10-23", "テスト 金", "デッドリフト")]
                     for reps in TEST_WEEK_REPS
                 ],
@@ -337,14 +254,14 @@ class TestImportLegacyRecords:
         _import(
             db_session,
             tmp_path,
-            kinnik_rows=[
-                _kinnik("2026-09-14", "ベンチプレス", 1, "80", "5"),
-                _kinnik("2026-09-14", "ベンチプレス", 2, "80", "5"),
-                _kinnik("2026-10-01", "デッドリフト", 1, "117.5", "3"),
-                _kinnik("2026-10-01", "ポーズベンチプレス", 1, "60", "5"),
-                _kinnik("2026-10-01", "ポーズベンチプレス", 2, "65", "4"),
-                _kinnik("2026-10-01", "ポーズベンチプレス", 3, "65", "5"),
-                _kinnik("2026-10-01", "ポーズベンチプレス", 4, "65", "5"),
+            training_rows=[
+                _training_row("2026-09-14", "ベンチプレス", 1, "80", "5"),
+                _training_row("2026-09-14", "ベンチプレス", 2, "80", "5"),
+                _training_row("2026-10-01", "デッドリフト", 1, "117.5", "3"),
+                _training_row("2026-10-01", "ポーズベンチプレス", 1, "60", "5"),
+                _training_row("2026-10-01", "ポーズベンチプレス", 2, "65", "4"),
+                _training_row("2026-10-01", "ポーズベンチプレス", 3, "65", "5"),
+                _training_row("2026-10-01", "ポーズベンチプレス", 4, "65", "5"),
             ],
             cutting_rows=[
                 _phase(
@@ -352,7 +269,6 @@ class TestImportLegacyRecords:
                     "2026-09-14",
                     "実績 月",
                     "ベンチプレス",
-                    "BP",
                     rpe=None,
                     actual_weight=80,
                     actual_reps=5,
@@ -360,11 +276,9 @@ class TestImportLegacyRecords:
                 ),
             ],
             bulking_rows=[
-                _phase("1", "2026-09-28", "Day1 月", "スクワット", "SQ"),
-                _phase("1", "2026-10-01", "Day3 木", "デッドリフト", "DL", actual_weight=117.5, actual_reps=3),
-                _phase(
-                    "1", "2026-10-01", "Day3 木", "ポーズベンチ", "BP", actual_weight=65, actual_reps=5, actual_rir=2
-                ),
+                _phase("1", "2026-09-28", "Day1 月", "スクワット"),
+                _phase("1", "2026-10-01", "Day3 木", "デッドリフト", actual_weight=117.5, actual_reps=3),
+                _phase("1", "2026-10-01", "Day3 木", "ポーズベンチ", actual_weight=65, actual_reps=5, actual_rir=2),
             ],
         )
 
@@ -395,11 +309,11 @@ class TestImportLegacyRecords:
         _import(
             db_session,
             tmp_path,
-            kinnik_rows=[
-                _kinnik("2026-09-21", "スクワット", 1, "80", "5"),
-                _kinnik("2026-09-28", "スクワット", 1, "80", "5"),
-                _kinnik("2026-10-01", "デッドリフト", 1, "117.5", "3"),
-                _kinnik("2026-10-03", "スクワット", 1, "80", "5"),
+            training_rows=[
+                _training_row("2026-09-21", "スクワット", 1, "80", "5"),
+                _training_row("2026-09-28", "スクワット", 1, "80", "5"),
+                _training_row("2026-10-01", "デッドリフト", 1, "117.5", "3"),
+                _training_row("2026-10-03", "スクワット", 1, "80", "5"),
             ],
             cutting_rows=[
                 _phase(
@@ -407,7 +321,6 @@ class TestImportLegacyRecords:
                     "2026-09-21",
                     "実績 月",
                     "スクワット",
-                    "SQ",
                     rpe=None,
                     actual_weight=80,
                     actual_reps=5,
@@ -415,8 +328,8 @@ class TestImportLegacyRecords:
                 ),
             ],
             bulking_rows=[
-                _phase("1", "2026-09-28", "Day1 月", "スクワット", "SQ"),
-                _phase("1", "2026-10-01", "Day3 木", "デッドリフト", "DL", actual_weight=117.5, actual_reps=3),
+                _phase("1", "2026-09-28", "Day1 月", "スクワット"),
+                _phase("1", "2026-10-01", "Day3 木", "デッドリフト", actual_weight=117.5, actual_reps=3),
             ],
         )
 
@@ -434,12 +347,12 @@ class TestImportLegacyRecords:
         _import(
             db_session,
             tmp_path,
-            kinnik_rows=[
-                _kinnik("2026-10-06", "スクワット", 1, "80", "5"),
-                _kinnik("2026-10-12", "スクワット", 1, "100", "5"),
-                _kinnik("2026-10-13", "スクワット", 1, "100", "5"),
+            training_rows=[
+                _training_row("2026-10-06", "スクワット", 1, "80", "5"),
+                _training_row("2026-10-12", "スクワット", 1, "100", "5"),
+                _training_row("2026-10-13", "スクワット", 1, "100", "5"),
             ],
-            bulking_rows=[_phase("1", "2026-09-28", "Day1 月", "スクワット", "SQ")],
+            bulking_rows=[_phase("1", "2026-09-28", "Day1 月", "スクワット")],
         )
         exercise_repo = DbExerciseRepository(db_session)
         squat_id = next(
@@ -484,8 +397,8 @@ class TestImportLegacyRecords:
             _import(
                 db_session,
                 tmp_path,
-                kinnik_rows=[_kinnik("2026-10-01", "スクワット", 1, "80", "5")],
-                bulking_rows=[_phase("1", "2026-09-28", "Day1 月", "スクワット", "SQ")],
+                training_rows=[_training_row("2026-10-01", "スクワット", 1, "80", "5")],
+                bulking_rows=[_phase("1", "2026-09-28", "Day1 月", "スクワット")],
             )
         exercise_repo = DbExerciseRepository(db_session)
         assert (
@@ -512,8 +425,8 @@ class TestImportLegacyRecords:
             _import(
                 db_session,
                 tmp_path,
-                kinnik_rows=[_kinnik("2026-10-01", "スクワット", 1, "80", "5")],
-                bulking_rows=[_phase("1", "2026-09-28", "Day1 月", "スクワット", "SQ")],
+                training_rows=[_training_row("2026-10-01", "スクワット", 1, "80", "5")],
+                bulking_rows=[_phase("1", "2026-09-28", "Day1 月", "スクワット")],
             )
         exercise_repo = DbExerciseRepository(db_session)
         assert (
@@ -530,8 +443,8 @@ class TestImportLegacyRecords:
         _import(
             db_session,
             tmp_path,
-            kinnik_rows=[_kinnik("2026-09-14", "ラットプルダウン", 1, "55", "10")],
-            bulking_rows=[_phase("1", "2026-09-28", "Day1 月", "スクワット", "SQ")],
+            training_rows=[_training_row("2026-09-14", "ラットプルダウン", 1, "55", "10")],
+            bulking_rows=[_phase("1", "2026-09-28", "Day1 月", "スクワット")],
         )
 
         names = _exercise_names(db_session)
@@ -557,10 +470,10 @@ class TestImportLegacyRecords:
         _import(
             db_session,
             tmp_path,
-            kinnik_rows=[_kinnik("2026-09-14", "スクワット", 1, "80", "5")],
+            training_rows=[_training_row("2026-09-14", "スクワット", 1, "80", "5")],
             bulking_rows=[
-                _phase("1", "2026-09-28", "Day1 月", "スクワット", "SQ"),
-                _phase("1", "2026-09-28", "Day1 月", "フェイスプル", "補助", rpe=None),
+                _phase("1", "2026-09-28", "Day1 月", "スクワット"),
+                _phase("1", "2026-09-28", "Day1 月", "フェイスプル", rpe=None),
             ],
         )
 
@@ -578,11 +491,11 @@ class TestImportLegacyRecords:
         _import(
             db_session,
             tmp_path,
-            kinnik_rows=[_kinnik("2026-09-14", "ラットプルダウン", 1, "55", "10")],
+            training_rows=[_training_row("2026-09-14", "ラットプルダウン", 1, "55", "10")],
             bulking_rows=[
-                _phase("1", "2026-09-28", "Day1 月", "スクワット", "SQ"),
-                _phase("1", "2026-09-28", "Day1 月", "ラットプルダウン", "補助"),
-                _phase("1", "2026-09-28", "Day1 月", "ラットプル", "補助"),
+                _phase("1", "2026-09-28", "Day1 月", "スクワット"),
+                _phase("1", "2026-09-28", "Day1 月", "ラットプルダウン"),
+                _phase("1", "2026-09-28", "Day1 月", "ラットプル"),
             ],
         )
 
@@ -590,126 +503,98 @@ class TestImportLegacyRecords:
         assert [message.partition(": ")[2] for message in warnings] == ["['ラットプル']"]
 
     @pytest.mark.parametrize(
-        ("kinnik_rows", "bulking_rows", "master", "prompt", "reason"),
+        ("training_rows", "bulking_rows", "master", "reason"),
         [
             pytest.param(
-                [_kinnik("2026-10-01", "スクワット", 1, "80", "5")],
-                [_phase("1", "2026-09-28", "Day1 月", "スクワット", "SQ")],
+                [_training_row("2026-10-01", "スクワット", 1, "80", "5")],
+                [_phase("1", "2026-09-28", "Day1月", "スクワット")],
                 MASTER,
-                "# 保守プロンプト\n\n## 2. ファイル仕様\n",
-                "保守プロンプトに「## 3.」の節がありません",
-                id="保守プロンプトに設計の節が無い",
-            ),
-            pytest.param(
-                [_kinnik("2026-10-01", "スクワット", 1, "80", "5")],
-                [_phase("1", "2026-09-28", "Day1月", "スクワット", "SQ")],
-                MASTER,
-                PROMPT,
-                "増量期シートの Day の列の形式が不正です",
+                "bulking_phase.csv の Day の列の形式が不正です",
                 id="Day の列に曜日が無い",
             ),
             pytest.param(
-                [_kinnik("2026-10-01", "スクワット", 1, "80", "5")],
+                [_training_row("2026-10-01", "スクワット", 1, "80", "5")],
                 [
-                    _phase("1", "2026-09-28", "Day1 月", "スクワット", "SQ"),
-                    *[_phase("2 テスト", "2026-10-05", "テスト 月", "スクワット", "SQ") for _ in range(5)],
+                    _phase("1", "2026-09-28", "Day1 月", "スクワット"),
+                    *[_phase("2 テスト", "2026-10-05", "テスト 月", "スクワット") for _ in range(5)],
                 ],
                 MASTER,
-                PROMPT,
-                "増量期シートのテスト週は種目ごとに6行にしてください",
+                "bulking_phase.csv のテスト週は種目ごとに6行にしてください",
                 id="テスト週の行が足りない",
             ),
             pytest.param(
-                [_kinnik("2026-10-01", "スクワット", 1, "80", "5")],
+                [_training_row("2026-10-01", "スクワット", 1, "80", "5")],
                 [
-                    _phase("1", "2026-09-28", "Day1 月", "スクワット", "SQ"),
-                    _phase("1 デロード", "2026-09-29", "Day2 火", "ベンチプレス", "BP"),
+                    _phase("1", "2026-09-28", "Day1 月", "スクワット"),
+                    _phase("1 デロード", "2026-09-29", "Day2 火", "ベンチプレス"),
                 ],
                 MASTER,
-                PROMPT,
-                "増量期シートの週番号が重複しています",
+                "bulking_phase.csv の週番号が重複しています",
                 id="週番号が重複する",
             ),
             pytest.param(
-                [_kinnik("2026-10-01", "スクワット", 1, "80", "5")],
+                [_training_row("2026-10-01", "スクワット", 1, "80", "5")],
                 [
-                    _phase("1", "2026-09-28", "Day1 月", "スクワット", "SQ"),
-                    _phase("1", "2026-09-29", "Day1 火", "ベンチプレス", "BP"),
+                    _phase("1", "2026-09-28", "Day1 月", "スクワット"),
+                    _phase("1", "2026-09-29", "Day1 火", "ベンチプレス"),
                 ],
                 MASTER,
-                PROMPT,
-                "増量期シートの週に同じ Day の番号があります",
+                "bulking_phase.csv の週に同じ Day の番号があります",
                 id="同じ週の Day の番号が重複する",
             ),
             pytest.param(
                 [],
-                [_phase("1", "2026-09-28", "Day1 月", "スクワット", "SQ")],
+                [_phase("1", "2026-09-28", "Day1 月", "スクワット")],
                 MASTER,
-                PROMPT,
-                "KINNIK の CSV にトレーニング記録がありません",
+                "training_logs.csv にトレーニング記録がありません",
                 id="CSV に記録が無い",
             ),
             pytest.param(
-                [_kinnik("2026-10-15", "スクワット", 1, "80", "5")],
-                [_phase("1", "2026-09-28", "Day1 月", "スクワット", "SQ")],
+                [_training_row("2026-10-15", "スクワット", 1, "80", "5")],
+                [_phase("1", "2026-09-28", "Day1 月", "スクワット")],
                 MASTER,
-                PROMPT,
-                "KINNIK の CSV に今日より後の日付があります",
+                "training_logs.csv に今日より後の日付があります",
                 id="CSV に今日より後の日付がある",
             ),
             pytest.param(
-                [_kinnik("2026-10-01", "スクワット", 1, "80", "5")],
-                [_phase("1", "2026-09-29", "Day1 月", "スクワット", "SQ")],
+                [_training_row("2026-10-01", "スクワット", 1, "80", "5")],
+                [_phase("1", "2026-09-29", "Day1 月", "スクワット")],
                 MASTER,
-                PROMPT,
-                "増量期シートの目安日が週と曜日から求めた日付と一致しません",
+                "bulking_phase.csv の目安日が週と曜日から求めた日付と一致しません",
                 id="目安日が週と曜日に合わない",
             ),
             pytest.param(
-                [_kinnik("2026-10-01", "スクワット", 51, "80", "5")],
-                [_phase("1", "2026-09-28", "Day1 月", "スクワット", "SQ")],
+                [_training_row("2026-10-01", "スクワット", 51, "80", "5")],
+                [_phase("1", "2026-09-28", "Day1 月", "スクワット")],
                 MASTER,
-                PROMPT,
-                "KINNIK の CSV のセットが受け付けられる範囲を外れています",
+                "training_logs.csv のセットが受け付けられる範囲を外れています",
                 id="セット番号が50を超える",
             ),
             pytest.param(
-                [_kinnik("2026-10-01", "スクワット", 1, "500.5", "5")],
-                [_phase("1", "2026-09-28", "Day1 月", "スクワット", "SQ")],
+                [_training_row("2026-10-01", "スクワット", 1, "500.5", "5")],
+                [_phase("1", "2026-09-28", "Day1 月", "スクワット")],
                 MASTER,
-                PROMPT,
-                "KINNIK の CSV のセットが受け付けられる範囲を外れています",
+                "training_logs.csv のセットが受け付けられる範囲を外れています",
                 id="重量が500kgを超える",
             ),
             pytest.param(
-                [_kinnik("2026-10-01", "スクワット", 1, "80", "101")],
-                [_phase("1", "2026-09-28", "Day1 月", "スクワット", "SQ")],
+                [_training_row("2026-10-01", "スクワット", 1, "80", "101")],
+                [_phase("1", "2026-09-28", "Day1 月", "スクワット")],
                 MASTER,
-                PROMPT,
-                "KINNIK の CSV のセットが受け付けられる範囲を外れています",
+                "training_logs.csv のセットが受け付けられる範囲を外れています",
                 id="回数が100を超える",
             ),
             pytest.param(
-                [_kinnik("2026-10-01", "スクワット", 1, "80", "5", memo="あ" * 1001)],
-                [_phase("1", "2026-09-28", "Day1 月", "スクワット", "SQ")],
+                [_training_row("2026-10-01", "ア" * 65, 1, "80", "5")],
+                [_phase("1", "2026-09-28", "Day1 月", "スクワット")],
                 MASTER,
-                PROMPT,
-                "KINNIK の CSV のメモが受け付けられる範囲を外れています",
-                id="メモが1000字を超える",
-            ),
-            pytest.param(
-                [_kinnik("2026-10-01", "ア" * 65, 1, "80", "5")],
-                [_phase("1", "2026-09-28", "Day1 月", "スクワット", "SQ")],
-                MASTER,
-                PROMPT,
                 "種目の値が受け付けられる範囲を外れています",
                 id="種目名が64字を超える",
             ),
             pytest.param(
-                [_kinnik("2026-10-01", "スクワット", 1, "80", "5")],
-                [_phase("1", "2026-09-28", "Day1 月", "スクワット", "SQ")],
+                [_training_row("2026-10-01", "スクワット", 1, "80", "5")],
+                [_phase("1", "2026-09-28", "Day1 月", "スクワット")],
                 [*MASTER, ("ラーセンベンチ", "BP", 2.5)],
-                PROMPT,
                 "種目の値が受け付けられる範囲を外れています",
                 id="換算係数が2を超える",
             ),
@@ -719,16 +604,13 @@ class TestImportLegacyRecords:
         self,
         db_session: Session,
         tmp_path: Path,
-        kinnik_rows: list[list[str]],
+        training_rows: list[list[str]],
         bulking_rows: list[tuple[object, ...]],
         master: list[tuple[str, str, float]],
-        prompt: str,
         reason: str,
     ) -> None:
         with pytest.raises(InvalidLegacyFile, match=reason):
-            _import(
-                db_session, tmp_path, kinnik_rows=kinnik_rows, bulking_rows=bulking_rows, master=master, prompt=prompt
-            )
+            _import(db_session, tmp_path, training_rows=training_rows, bulking_rows=bulking_rows, master=master)
         assert (
             _exercise_names(db_session),
             DbProgramRepository(db_session).get_latest(),
@@ -752,14 +634,18 @@ class TestParseTrainingCsv:
     )
     def test_重量の空欄は0kgにし小数の回数は四捨五入する(self, weight: str, reps: str, expected: ExerciseSet) -> None:
         text = io.StringIO()
-        csv.writer(text).writerows([KINNIK_HEADER, _kinnik("2026-10-01", "ダンベルカール", 1, weight, reps)])
+        csv.writer(text).writerows([TRAINING_COLUMNS, _training_row("2026-10-01", "ダンベルカール", 1, weight, reps)])
 
         assert parse_training_csv(text.getvalue())[0].exercises[0].sets == (expected,)
 
     def test_種目名の前後の空白は除いて同じ種目にまとめる(self) -> None:
         text = io.StringIO()
         csv.writer(text).writerows(
-            [KINNIK_HEADER, _kinnik("2026-10-01", "懸垂 ", 1, "0", "8"), _kinnik("2026-10-01", "懸垂", 2, "0", "7")]
+            [
+                TRAINING_COLUMNS,
+                _training_row("2026-10-01", "懸垂 ", 1, "0", "8"),
+                _training_row("2026-10-01", "懸垂", 2, "0", "7"),
+            ]
         )
 
         assert [
@@ -788,21 +674,12 @@ class TestMain:
         monkeypatch.setattr("scripts.import_legacy.SessionLocal", lambda: db_session)
         _write_inputs(
             tmp_path,
-            kinnik_rows=[_kinnik("2026-10-01", "スクワット", 1, "80", "5")],
-            bulking_rows=[_phase("1", "2026-09-28", "Day1 月", "スクワット", "SQ")],
+            training_rows=[_training_row("2026-10-01", "スクワット", 1, "80", "5")],
+            bulking_rows=[_phase("1", "2026-09-28", "Day1 月", "スクワット")],
         )
 
         with pytest.raises(SystemExit) as exit_info:
-            main(
-                [
-                    "--training-csv",
-                    str(tmp_path / TRAINING_CSV),
-                    "--program-xlsx",
-                    str(tmp_path / PROGRAM_XLSX),
-                    "--maintenance-prompt",
-                    str(tmp_path / MAINTENANCE_PROMPT),
-                ]
-            )
+            main(["--seed-dir", str(tmp_path)])
         assert (exit_info.value.code, caplog.messages) == (
             1,
             [

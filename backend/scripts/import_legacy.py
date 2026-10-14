@@ -8,12 +8,8 @@ from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import asdict, dataclass, replace
 from datetime import date
 from decimal import ROUND_HALF_UP, Decimal
-from itertools import dropwhile, takewhile
 from pathlib import Path
 
-from openpyxl import load_workbook
-from openpyxl.workbook.workbook import Workbook
-from openpyxl.worksheet.worksheet import Worksheet
 from pydantic import BaseModel, ValidationError
 from sqlalchemy.orm import Session
 
@@ -28,12 +24,17 @@ from features.program import service as program_service
 from features.program.protocol import ProgramRepository
 from features.program.types import NewPlannedExercise, NewProgram, NewProgramDay, NewProgramWeek, Weekday
 from features.training_log import service as training_log_service
-from features.training_log.dto import PerformedExerciseMemoUpdateParams, SetsReplaceParams
+from features.training_log.dto import SetsReplaceParams
 from features.training_log.protocol import TrainingLogRepository
 from features.training_log.types import ExerciseSet
 
 logger = logging.getLogger(__name__)
 
+TRAINING_LOGS_CSV = "training_logs.csv"
+EXERCISE_MASTER_CSV = "exercise_master.csv"
+BULKING_PHASE_CSV = "bulking_phase.csv"
+CUTTING_PHASE_CSV = "cutting_phase.csv"
+DESIGN_NOTE_MD = "design_note.md"
 PROGRAM_NAME = "2026 増量期"
 PROGRAM_START_DATE = date(2026, 9, 28)
 EXERCISE_NAMES = {
@@ -41,7 +42,6 @@ EXERCISE_NAMES = {
     "ポーズベンチプレス": "ポーズベンチ",
     "シーテッドレッグプレス": "レッグプレス",
 }
-MASTER_HEADING = "■ 種目マスタ"
 BENCH_PRESS = "ベンチプレス"
 BENCH_PRESS_E1RM_DIVISOR = 40.0
 DEFAULT_E1RM_DIVISOR = 33.3
@@ -68,7 +68,6 @@ class InvalidLegacyFile(Exception): ...
 @dataclass(frozen=True)
 class LegacyExercise:
     name: str
-    memo: str
     sets: tuple[ExerciseSet, ...]
 
 
@@ -127,7 +126,8 @@ def parse_training_csv(text: str) -> list[LegacyTrainingLog]:
     exercises_by_date: dict[date, list[LegacyExercise]] = {}
     for row in csv.DictReader(io.StringIO(text)):
         name = EXERCISE_NAMES.get(row["種目"].strip(), row["種目"].strip())
-        # KINNIK は重量の空欄と小数の回数を許す。セットの数を保つため、空欄は 0kg、回数は四捨五入で取り込む
+        # 記録アプリの書き出しには重量の空欄と小数の回数がある。
+        # セットの数を保つため、空欄は 0kg、回数は四捨五入で取り込む
         exercise_set = ExerciseSet(
             order=int(row["セット"]),
             weight=0.0 if row["重量"] == "" else float(row["重量"]),
@@ -141,17 +141,10 @@ def parse_training_csv(text: str) -> list[LegacyTrainingLog]:
         if is_continued:
             exercises[-1] = replace(exercises[-1], sets=(*exercises[-1].sets, exercise_set))
         else:
-            exercises.append(LegacyExercise(name=name, memo=row["メモ"], sets=(exercise_set,)))
+            exercises.append(LegacyExercise(name=name, sets=(exercise_set,)))
     return [
         LegacyTrainingLog(date=on, exercises=tuple(exercises)) for on, exercises in sorted(exercises_by_date.items())
     ]
-
-
-def extract_design_note(maintenance_prompt: str) -> str:
-    section = dropwhile(lambda line: not line.startswith("## 3."), maintenance_prompt.splitlines())
-    if next(section, None) is None:
-        raise InvalidLegacyFile("保守プロンプトに「## 3.」の節がありません")
-    return "\n".join(takewhile(lambda line: not line.startswith("## "), section)).strip()
 
 
 def plan_exercises(
@@ -174,7 +167,8 @@ def plan_exercises(
     unperformed_names = [name for name in planned_names if name not in master_names and name not in performed_names]
     if len(unperformed_names) > 0:
         logger.warning(
-            "種目マスタにも KINNIK の CSV にも無い予定の種目を作ります。表記のずれでないか確認してください: %s",
+            "exercise_master.csv にも training_logs.csv にも無い予定の種目を作ります。"
+            "表記のずれでないか確認してください: %s",
             unperformed_names,
         )
     # 増量期の予定にあってまだ実施していない補助種目も、予定種目の参照先として作る
@@ -274,7 +268,7 @@ def fill_rir(training_logs: Sequence[LegacyTrainingLog], records: Iterable[RirRe
 def validate_bulking_rows(rows: Sequence[PhaseRow]) -> None:
     for row in rows:
         if DAY_PATTERN.fullmatch(row.day) is None:
-            raise InvalidLegacyFile(f"増量期シートの Day の列の形式が不正です: 週 {row.week} の {row.day}")
+            raise InvalidLegacyFile(f"bulking_phase.csv の Day の列の形式が不正です: 週 {row.week} の {row.day}")
     day_numbers = Counter(
         (_week_number(week), day.partition(" ")[0])
         for week, day in dict.fromkeys((row.week, row.day) for row in rows)
@@ -282,18 +276,18 @@ def validate_bulking_rows(rows: Sequence[PhaseRow]) -> None:
     )
     duplicated_days = [f"週 {week} の {prefix}" for (week, prefix), count in day_numbers.items() if count > 1]
     if len(duplicated_days) > 0:
-        raise InvalidLegacyFile(f"増量期シートの週に同じ Day の番号があります: {duplicated_days}")
+        raise InvalidLegacyFile(f"bulking_phase.csv の週に同じ Day の番号があります: {duplicated_days}")
     week_counts = Counter(_week_number(week) for week in dict.fromkeys(row.week for row in rows))
     duplicated_weeks = [week for week, count in week_counts.items() if count > 1]
     if len(duplicated_weeks) > 0:
-        raise InvalidLegacyFile(f"増量期シートの週番号が重複しています: {duplicated_weeks}")
+        raise InvalidLegacyFile(f"bulking_phase.csv の週番号が重複しています: {duplicated_weeks}")
     test_row_counts = Counter(
         (row.week, row.day, row.exercise_name) for row in rows if row.day.startswith(TEST_DAY_PREFIX)
     )
     for (week, day, exercise_name), count in test_row_counts.items():
         if count != len(TEST_WEEK_PERCENTS):
             raise InvalidLegacyFile(
-                f"増量期シートのテスト週は種目ごとに{len(TEST_WEEK_PERCENTS)}行にしてください: "
+                f"bulking_phase.csv のテスト週は種目ごとに{len(TEST_WEEK_PERCENTS)}行にしてください: "
                 f"週 {week} の {day} の {exercise_name} は {count} 行です"
             )
     for row in rows:
@@ -302,30 +296,24 @@ def validate_bulking_rows(rows: Sequence[PhaseRow]) -> None:
         )
         if row.guide_date != guide_date:
             raise InvalidLegacyFile(
-                f"増量期シートの目安日が週と曜日から求めた日付と一致しません: "
+                f"bulking_phase.csv の目安日が週と曜日から求めた日付と一致しません: "
                 f"週 {row.week} の {row.day} は {guide_date} ですが、目安日は {row.guide_date} です"
             )
 
 
 def validate_training_logs(training_logs: Sequence[LegacyTrainingLog], *, today: date) -> None:
     if len(training_logs) == 0:
-        raise InvalidLegacyFile("KINNIK の CSV にトレーニング記録がありません")
+        raise InvalidLegacyFile("training_logs.csv にトレーニング記録がありません")
     if training_logs[-1].date > today:
-        raise InvalidLegacyFile(f"KINNIK の CSV に今日より後の日付があります: {training_logs[-1].date}")
+        raise InvalidLegacyFile(f"training_logs.csv に今日より後の日付があります: {training_logs[-1].date}")
     for training_log in training_logs:
         for exercise in training_log.exercises:
             _validate_api_params(
                 SetsReplaceParams,
                 {"sets": [asdict(exercise_set) for exercise_set in exercise.sets]},
                 reason=(
-                    f"KINNIK の CSV のセットが受け付けられる範囲を外れています: {training_log.date} の {exercise.name}"
-                ),
-            )
-            _validate_api_params(
-                PerformedExerciseMemoUpdateParams,
-                {"memo": exercise.memo},
-                reason=(
-                    f"KINNIK の CSV のメモが受け付けられる範囲を外れています: {training_log.date} の {exercise.name}"
+                    "training_logs.csv のセットが受け付けられる範囲を外れています: "
+                    f"{training_log.date} の {exercise.name}"
                 ),
             )
 
@@ -346,9 +334,7 @@ def validate_exercise_plans(plans: Iterable[ExerciseToCreate]) -> None:
         )
 
 
-def import_legacy_records(
-    session: Session, *, training_csv: Path, program_xlsx: Path, maintenance_prompt: Path, today: date
-) -> None:
+def import_legacy_records(session: Session, *, seed_dir: Path, today: date) -> None:
     exercise_repo = get_exercise_repository(session)
     program_repo = get_program_repository(session)
     training_log_repo = get_training_log_repository(session)
@@ -361,18 +347,19 @@ def import_legacy_records(
 
     # 書き込みは repository ごとに commit される。途中で失敗して一部だけ残らないよう、
     # 入力の検査を最初の書き込みより前に済ませる
-    design_note = extract_design_note(maintenance_prompt.read_text(encoding="utf-8"))
-    workbook = load_workbook(program_xlsx, data_only=True)
-    bulking_rows = _read_phase_rows(workbook["増量期"])
+    design_note = (seed_dir / DESIGN_NOTE_MD).read_text(encoding="utf-8").strip()
+    bulking_rows = _read_phase_rows(seed_dir / BULKING_PHASE_CSV)
     validate_bulking_rows(bulking_rows)
     rir_filling = fill_rir(
-        parse_training_csv(training_csv.read_text(encoding="utf-8-sig")),
-        list_rir_records([*_read_phase_rows(workbook["減量期"]), *bulking_rows]),
+        parse_training_csv((seed_dir / TRAINING_LOGS_CSV).read_text(encoding="utf-8")),
+        list_rir_records([*_read_phase_rows(seed_dir / CUTTING_PHASE_CSV), *bulking_rows]),
     )
     training_logs = rir_filling.training_logs
     validate_training_logs(training_logs, today=today)
     exercise_plans = plan_exercises(
-        _read_master_exercises(workbook), training_logs, planned_names=[row.exercise_name for row in bulking_rows]
+        _read_master_exercises(seed_dir / EXERCISE_MASTER_CSV),
+        training_logs,
+        planned_names=[row.exercise_name for row in bulking_rows],
     )
     validate_exercise_plans(exercise_plans)
 
@@ -413,27 +400,23 @@ def import_legacy_records(
         sum(len(exercise.sets) for training_log in training_logs for exercise in training_log.exercises),
         sum(1 for training_log in training_logs if training_log.date in recorded_guide_dates),
     )
-    logger.info("RIR を入れられなかった xlsx の行は %d 件です", rir_filling.unfilled_count)
+    logger.info(
+        "RIR を入れられなかった bulking_phase.csv と cutting_phase.csv の行は %d 件です", rir_filling.unfilled_count
+    )
 
 
 def main(argv: Sequence[str] | None = None) -> None:
     parser = argparse.ArgumentParser(
-        description="KINNIK の CSV と xlsx から、種目、増量期のプログラム、トレーニング記録を空の DB に取り込む"
+        description="seed の CSV と設計メモから、種目、増量期のプログラム、トレーニング記録を空の DB に取り込む"
     )
-    parser.add_argument("--training-csv", type=Path, required=True, help="KINNIK の kinnik_CSV_training_*.csv")
-    parser.add_argument("--program-xlsx", type=Path, required=True, help="BIG3プログラム管理.xlsx")
-    parser.add_argument("--maintenance-prompt", type=Path, required=True, help="BIG3プログラム管理_保守プロンプト.md")
+    parser.add_argument(
+        "--seed-dir", type=Path, required=True, help="seed のディレクトリ。形式は data/README.md にある"
+    )
     args = parser.parse_args(argv)
     logging.basicConfig(level=logging.INFO)
     with SessionLocal() as session:
         try:
-            import_legacy_records(
-                session,
-                training_csv=args.training_csv,
-                program_xlsx=args.program_xlsx,
-                maintenance_prompt=args.maintenance_prompt,
-                today=get_today(),
-            )
+            import_legacy_records(session, seed_dir=args.seed_dir, today=get_today())
         except (Conflict, InvalidLegacyFile) as error:
             logger.error("移行を中断しました。%s", error)
             raise SystemExit(1) from error
@@ -500,33 +483,33 @@ def _fill_first_matching_set(training_log: LegacyTrainingLog, record: RirRecord)
     return None
 
 
-def _read_master_exercises(workbook: Workbook) -> list[MasterExercise]:
-    rows = dropwhile(
-        lambda row: not str(row[0]).startswith(MASTER_HEADING), workbook["設定"].iter_rows(values_only=True)
-    )
-    next(rows)
+def _read_csv(path: Path) -> list[dict[str, str]]:
+    with path.open(encoding="utf-8", newline="") as f:
+        return list(csv.DictReader(f))
+
+
+def _read_master_exercises(path: Path) -> list[MasterExercise]:
     return [
-        MasterExercise(name=row[0].strip(), category=row[1], coefficient=float(row[2]))
-        for row in takewhile(lambda row: row[0] is not None, rows)
+        MasterExercise(name=row["種目"].strip(), category=row["区分"], coefficient=float(row["係数"]))
+        for row in _read_csv(path)
     ]
 
 
-def _read_phase_rows(worksheet: Worksheet) -> list[PhaseRow]:
+def _read_phase_rows(path: Path) -> list[PhaseRow]:
     return [
         PhaseRow(
-            week=str(row[0]),
-            guide_date=row[1].date(),
-            day=str(row[2]),
-            exercise_name=row[3].strip(),
-            sets=int(row[5]),
-            reps=int(row[6]),
-            target_rpe=None if row[7] is None else float(row[7]),
-            actual_weight=None if row[9] is None else float(row[9]),
-            actual_reps=None if row[10] is None else int(row[10]),
-            actual_rir=None if row[11] is None else int(row[11]),
+            week=row["週"],
+            guide_date=date.fromisoformat(row["目安日"]),
+            day=row["Day"],
+            exercise_name=row["種目"].strip(),
+            sets=int(row["セット"]),
+            reps=int(row["レップ"]),
+            target_rpe=None if row["目標RPE"] == "" else float(row["目標RPE"]),
+            actual_weight=None if row["実績重量kg"] == "" else float(row["実績重量kg"]),
+            actual_reps=None if row["実績レップ"] == "" else int(row["実績レップ"]),
+            actual_rir=None if row["実績RIR"] == "" else int(row["実績RIR"]),
         )
-        for row in worksheet.iter_rows(min_row=2, values_only=True)
-        if any(value is not None for value in row)
+        for row in _read_csv(path)
     ]
 
 
@@ -584,14 +567,6 @@ def _create_training_log(
             performed_uid=performed_uid,
             sets=legacy_exercise.sets,
         )
-        if legacy_exercise.memo != "":
-            training_log_service.update_performed_exercise_memo(
-                repo,
-                exercise_repo=exercise_repo,
-                program_repo=program_repo,
-                performed_uid=performed_uid,
-                memo=legacy_exercise.memo,
-            )
 
 
 if __name__ == "__main__":

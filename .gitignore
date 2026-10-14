@@ -216,5 +216,5 @@ __marimo__/
 !/.claude/settings.json
 !/.claude/rules/
 
-# 筋トレ履歴の移行元データ。個人データのためコミットしない
-/data/
+# 手元だけで使うファイルの置き場
+/data/raw/

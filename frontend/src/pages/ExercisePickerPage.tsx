@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'reac
 import { toast } from 'sonner'
 import { BODY_PART_LABEL } from '@/api/constants'
 import { exercisesApi, trainingLogsApi } from '@/api/fetcher'
+import { BackLink } from '@/components/BackLink'
 import { Input } from '@/components/dads/Input'
 import { InputField } from '@/components/InputField'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -60,9 +61,7 @@ function ExercisePicker({ trainingLogUid }: { trainingLogUid: string }): ReactEl
 
   return (
     <div className="flex flex-col gap-4 p-4">
-      <Link to={`/training-logs/${trainingLogUid}`} className="text-dns-14N-130 text-primary underline">
-        記録へ戻る
-      </Link>
+      <BackLink to={`/training-logs/${trainingLogUid}`}>記録</BackLink>
       <h1 className="text-std-24B-150">{replacingUid === null ? '種目を追加' : '種目を差し替え'}</h1>
       <InputField label="種目を検索">
         <Input type="search" value={query} onChange={(event) => setQuery(event.target.value)} />

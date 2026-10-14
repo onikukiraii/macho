@@ -1,14 +1,16 @@
 import { useState, type FormEvent, type ReactElement } from 'react'
-import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
+import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
 import { BODY_PART_LABEL, BODY_PART_ORDER, type BodyPart, type Exercise } from '@/api/constants'
 import { exercisesApi } from '@/api/fetcher'
+import { BackLink } from '@/components/BackLink'
 import { Button } from '@/components/Button'
 import { Input } from '@/components/dads/Input'
 import { Select } from '@/components/dads/Select'
 import { InputField } from '@/components/InputField'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useLoadable } from '@/hooks/useLoadable'
+import { useNavigateBack } from '@/hooks/useNavigateBack'
 import { resolveReturnTo } from '@/lib/returnTo'
 
 const LOAD_FAILURE_MESSAGE = '種目の一覧を取得できませんでした'
@@ -22,6 +24,7 @@ type ExerciseFormProps = {
 
 function ExerciseForm({ exercises, editing, initialName, returnTo }: ExerciseFormProps): ReactElement {
   const navigate = useNavigate()
+  const location = useLocation()
   const [name, setName] = useState(editing?.name ?? initialName)
   const [bodyPart, setBodyPart] = useState<BodyPart | ''>(editing?.body_part ?? '')
   const [parentUid, setParentUid] = useState(editing?.parent_uid ?? '')
@@ -53,8 +56,10 @@ function ExerciseForm({ exercises, editing, initialName, returnTo }: ExerciseFor
         returnTo === null
           ? null
           : resolveReturnTo(returnTo, window.location.origin, editing === null ? { createdExerciseUid: saved.uid } : {})
-      if (destination === null) navigate(`/exercises/${saved.uid}`)
-      else navigate(destination, { replace: true })
+      // 編集画面を履歴に残さない。残すと詳細画面の「戻る」で編集画面へ戻る
+      if (destination !== null) navigate(destination, { replace: true })
+      else if (editing !== null && location.key !== 'default') navigate(-1)
+      else navigate(`/exercises/${saved.uid}`, { replace: true })
     } catch (error) {
       if (!(error instanceof Error)) throw error
       toast.error(`種目を保存できませんでした。${error.message}`)
@@ -155,11 +160,15 @@ export function ExerciseEditPage(): ReactElement {
   const { uid } = useParams<{ uid: string }>()
   const [searchParams] = useSearchParams()
   const [exercises] = useLoadable(() => exercisesApi.list(), [], LOAD_FAILURE_MESSAGE)
+  const navigateBack = useNavigateBack()
 
   const editing = exercises.status === 'loaded' ? (exercises.value.find((exercise) => exercise.uid === uid) ?? null) : null
 
   return (
     <div className="flex flex-col gap-4 p-4">
+      <BackLink to={uid === undefined ? '/exercises' : `/exercises/${uid}`} onClick={navigateBack}>
+        戻る
+      </BackLink>
       <h1 className="text-std-24B-150">{uid === undefined ? '種目を作成' : '種目を編集'}</h1>
       {exercises.status === 'loading' && <Skeleton className="h-60" />}
       {exercises.status === 'failed' && <p className="text-muted-foreground">{LOAD_FAILURE_MESSAGE}</p>}

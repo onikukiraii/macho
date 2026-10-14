@@ -4,6 +4,7 @@ import { toast } from 'sonner'
 import type { components } from '@/api/schema'
 import { trainingLogsApi } from '@/api/fetcher'
 import { BottomSheet } from '@/components/BottomSheet'
+import { BackLink } from '@/components/BackLink'
 import { Button } from '@/components/Button'
 import { Textarea } from '@/components/dads/Textarea'
 import { InputField } from '@/components/InputField'
@@ -121,9 +122,9 @@ function TrainingLogView({ uid }: { uid: string }): ReactElement {
 
   return (
     <div className="flex flex-col gap-4 p-4 pb-[calc(7rem+env(safe-area-inset-bottom))]">
-      <Link to="/" onClick={(event) => confirmLeaveIfUnsaved(event, '/')} className="text-dns-14N-130 text-primary underline">
-        ホームへ戻る
-      </Link>
+      <BackLink to="/" onClick={(event) => confirmLeaveIfUnsaved(event, '/')}>
+        ホーム
+      </BackLink>
       <header className="flex items-start justify-between gap-4">
         {trainingLog.status === 'loaded' ? (
           <div className="flex flex-col gap-1">

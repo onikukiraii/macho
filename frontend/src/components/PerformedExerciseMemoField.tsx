@@ -1,4 +1,5 @@
 import { useState, type ReactElement } from 'react'
+import { Plus } from 'lucide-react'
 import { toast } from 'sonner'
 import type { components } from '@/api/schema'
 import { trainingLogsApi } from '@/api/fetcher'
@@ -11,6 +12,7 @@ type PerformedExerciseMemoFieldProps = {
 
 export function PerformedExerciseMemoField({ performedExercise }: PerformedExerciseMemoFieldProps): ReactElement {
   const [memo, setMemo] = useState(performedExercise.memo)
+  const [memoFieldOpen, setMemoFieldOpen] = useState(performedExercise.memo !== '')
 
   async function savePerformedExerciseMemo(): Promise<void> {
     try {
@@ -20,9 +22,23 @@ export function PerformedExerciseMemoField({ performedExercise }: PerformedExerc
     }
   }
 
+  if (!memoFieldOpen) {
+    return (
+      <button
+        type="button"
+        onClick={() => setMemoFieldOpen(true)}
+        className="flex min-h-11 w-fit items-center gap-1 pr-2 text-dns-14N-130 text-primary"
+      >
+        <Plus aria-hidden className="size-5" />
+        メモを追加
+      </button>
+    )
+  }
+
   return (
     <InputField label="メモ">
       <Textarea
+        autoFocus={performedExercise.memo === ''}
         rows={2}
         maxLength={1000}
         value={memo}

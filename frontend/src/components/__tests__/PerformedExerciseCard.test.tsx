@@ -346,9 +346,18 @@ describe('PerformedExerciseCard', () => {
     })
     renderCard(buildPerformedExercise({}))
 
+    fireEvent.click(screen.getByRole('button', { name: 'メモを追加' }))
     fireEvent.change(screen.getByRole('textbox', { name: 'メモ' }), { target: { value: '調子が良い' } })
     fireEvent.blur(screen.getByRole('textbox', { name: 'メモ' }))
 
     await waitFor(() => expect(trainingLogsApi.updateExerciseMemo).toHaveBeenCalledWith('performed-1', '調子が良い'))
+  })
+  it('メモが空のときは入力欄を閉じ、メモがあるときは入力欄を開いて表示する', () => {
+    const { unmount } = renderCard(buildPerformedExercise({}))
+    expect(screen.queryByRole('textbox', { name: 'メモ' })).not.toBeInTheDocument()
+    unmount()
+
+    renderCard(buildPerformedExercise({ memo: '肩に違和感' }))
+    expect(screen.getByRole('textbox', { name: 'メモ' })).toHaveValue('肩に違和感')
   })
 })

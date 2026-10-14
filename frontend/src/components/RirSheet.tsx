@@ -18,10 +18,10 @@ function RirQuestions({ onClose, onDecide }: Omit<RirSheetProps, 'open'>): React
       <div className="flex flex-col gap-6">
         <p className="text-std-20B-150">あと{evaluation.reps}回、絶対いける？</p>
         <div className="grid grid-cols-2 gap-4">
-          <Button size="lg" variant="outline" onClick={() => setAnswers([...answers, false])}>
+          <Button size="lg" variant="outline" className="w-full" onClick={() => setAnswers([...answers, false])}>
             いいえ
           </Button>
-          <Button size="lg" variant="solid-fill" onClick={() => setAnswers([...answers, true])}>
+          <Button size="lg" variant="solid-fill" className="w-full" onClick={() => setAnswers([...answers, true])}>
             はい
           </Button>
         </div>
@@ -35,12 +35,13 @@ function RirQuestions({ onClose, onDecide }: Omit<RirSheetProps, 'open'>): React
         RIR {evaluation.rir}、RPE {evaluation.rpe.toFixed(1)}
       </p>
       <div className="grid grid-cols-2 gap-4">
-        <Button size="lg" variant="outline" onClick={() => setAnswers([])}>
+        <Button size="lg" variant="outline" className="w-full" onClick={() => setAnswers([])}>
           やり直す
         </Button>
         <Button
           size="lg"
           variant="solid-fill"
+          className="w-full"
           onClick={() => {
             onDecide(evaluation.rir)
             onClose()

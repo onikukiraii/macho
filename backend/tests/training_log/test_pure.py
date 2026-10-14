@@ -2,7 +2,7 @@ from datetime import date
 
 import pytest
 
-from features.exercise.types import CalculationBasis
+from features.exercise.types import BodyPart, CalculationBasis
 from features.program.types import PlannedExercise, ProgramDay, ProgramWeek, Weekday
 from features.training_log._pure import (
     build_export_csv,
@@ -12,6 +12,7 @@ from features.training_log._pure import (
     evaluate_week,
     list_day_options,
     list_day_statuses,
+    list_trained_body_parts,
     select_top_set,
 )
 from features.training_log.types import DayStatus, ExerciseSet, PerformedExercise, ScheduledDay, TrainingLog
@@ -366,3 +367,21 @@ class TestBuildExportCsv:
             "2026-10-09,第2週 Day4,ベンチプレス,75,5,,84.4,5,8,75",
             "2026-10-13,第3週 Day1,ベンチプレス,77.5,5,2,91.1,5,8,77.5",
         ]
+
+
+class TestListTrainedBodyParts:
+    def test_セットのある種目の部位を重複なく部位の定義順に返し_セットの無い種目は数えない(self) -> None:
+        log = _log(
+            id=1,
+            on=date(2026, 10, 13),
+            exercises=(
+                _performed(id=1, exercise_id=10, sets=(_set(1, 60, 10),), planned_id=None),
+                _performed(id=2, exercise_id=20, sets=(_set(1, 80, 5),), planned_id=None),
+                _performed(id=3, exercise_id=30, sets=(_set(1, 50, 10),), planned_id=None),
+                _performed(id=4, exercise_id=40, sets=(), planned_id=None),
+            ),
+        )
+
+        assert list_trained_body_parts(
+            log, body_parts={10: BodyPart.back, 20: BodyPart.chest, 30: BodyPart.back, 40: BodyPart.legs}
+        ) == (BodyPart.chest, BodyPart.back)

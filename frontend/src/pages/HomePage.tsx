@@ -10,7 +10,7 @@ import { MonthCalendar } from '@/components/MonthCalendar'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useLoadable } from '@/hooks/useLoadable'
 import { useToday } from '@/hooks/useToday'
-import { buildMonthGrid } from '@/lib/calendar'
+import { buildMonthGrid, indexTrainedBodyParts } from '@/lib/calendar'
 import { formatDateString } from '@/lib/dates'
 import { formatSet } from '@/lib/exercises'
 import { formatDayLabel } from '@/lib/program'
@@ -81,7 +81,7 @@ export function HomePage(): ReactElement {
         dates={grid}
         today={today}
         selectedDate={selectedDate}
-        recordedDates={recordedDates}
+        trainedBodyParts={indexTrainedBodyParts(trainingLogs.status === 'loaded' ? trainingLogs.value : [])}
         onSelectDate={(date) => setPickedDate(date === today ? null : date)}
         onShowPreviousMonth={() => showMonth(-1)}
         onShowNextMonth={() => showMonth(1)}

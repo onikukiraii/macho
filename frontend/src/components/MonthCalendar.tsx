@@ -1,6 +1,8 @@
 import type { ReactElement } from 'react'
 import { format, parseISO } from 'date-fns'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { BODY_PART_LABEL, BODY_PART_ORDER, type BodyPart } from '@/api/constants'
+import { BodyPartDot } from '@/components/BodyPartDot'
 import { isAfterToday } from '@/lib/calendar'
 
 const WEEKDAY_HEADERS = ['月', '火', '水', '木', '金', '土', '日']
@@ -12,7 +14,8 @@ type MonthCalendarProps = {
   dates: string[]
   today: string
   selectedDate: string
-  recordedDates: ReadonlySet<string>
+  /** 記録のある日付と、その日に鍛えた部位 */
+  trainedBodyParts: ReadonlyMap<string, BodyPart[]>
   onSelectDate: (date: string) => void
   onShowPreviousMonth: () => void
   onShowNextMonth: () => void
@@ -24,7 +27,7 @@ export function MonthCalendar({
   dates,
   today,
   selectedDate,
-  recordedDates,
+  trainedBodyParts,
   onSelectDate,
   onShowPreviousMonth,
   onShowNextMonth,
@@ -51,12 +54,12 @@ export function MonthCalendar({
           </span>
         ))}
         {dates.map((date) => {
-          const recorded = recordedDates.has(date)
+          const bodyParts = trainedBodyParts.get(date)
           return (
             <button
               key={date}
               type="button"
-              aria-label={`${format(parseISO(date), 'M月d日')}${recorded ? ' 記録あり' : ''}`}
+              aria-label={`${format(parseISO(date), 'M月d日')}${bodyParts === undefined ? '' : ` 記録あり${bodyParts.map((bodyPart) => ` ${BODY_PART_LABEL[bodyPart]}`).join('')}`}`}
               aria-pressed={date === selectedDate}
               disabled={isAfterToday(date, today)}
               onClick={() => onSelectDate(date)}
@@ -69,11 +72,28 @@ export function MonthCalendar({
               }
             >
               {parseISO(date).getDate()}
-              {recorded && <span aria-hidden className="size-1.5 rounded-full bg-current" />}
+              {bodyParts !== undefined && bodyParts.length === 0 && (
+                <span aria-hidden className="size-1.5 rounded-full bg-current" />
+              )}
+              {bodyParts !== undefined && bodyParts.length > 0 && (
+                <span className="flex gap-px">
+                  {bodyParts.map((bodyPart) => (
+                    <BodyPartDot key={bodyPart} bodyPart={bodyPart} />
+                  ))}
+                </span>
+              )}
             </button>
           )
         })}
       </div>
+      <ul aria-label="部位の色" className="flex flex-wrap justify-center gap-x-3 gap-y-1 text-dns-14N-120 text-muted-foreground">
+        {BODY_PART_ORDER.map((bodyPart) => (
+          <li key={bodyPart} className="flex items-center gap-1">
+            <BodyPartDot bodyPart={bodyPart} />
+            {BODY_PART_LABEL[bodyPart]}
+          </li>
+        ))}
+      </ul>
     </section>
   )
 }

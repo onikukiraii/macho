@@ -636,6 +636,8 @@ export interface components {
             week_label: string | null;
             /** Top Sets */
             top_sets: components["schemas"]["TopSetResponse"][];
+            /** Body Parts */
+            body_parts: components["schemas"]["BodyPart"][];
         };
         /** TrainingLogUpdateParams */
         TrainingLogUpdateParams: {

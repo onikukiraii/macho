@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from datetime import date
 from enum import StrEnum
 
-from features.exercise.types import Exercise, TrainingMaxUpdate
+from features.exercise.types import BodyPart, Exercise, TrainingMaxUpdate
 from features.program.types import PlannedExercise, Program, ProgramDay, ProgramWeek
 
 
@@ -95,6 +95,7 @@ class TrainingLogSummary:
     training_log: TrainingLog
     scheduled_day: ScheduledDay | None
     top_sets: tuple[TopSet, ...]
+    body_parts: tuple[BodyPart, ...]
 
 
 @dataclass(frozen=True)

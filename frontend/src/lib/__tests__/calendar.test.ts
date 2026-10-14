@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { buildMonthGrid, isAfterToday } from '../calendar'
+import { buildMonthGrid, indexTrainedBodyParts, isAfterToday } from '../calendar'
 
 describe('buildMonthGrid', () => {
   it('月曜始まりで前後の月の日を含めたマス目を返し、今日より後の日を判定できる', () => {
@@ -42,5 +42,20 @@ describe('buildMonthGrid', () => {
       last,
       cellCount: 35,
     })
+  })
+})
+
+describe('indexTrainedBodyParts', () => {
+  it('同じ日の記録の部位をまとめて部位の並び順にし、部位の無い記録の日も空の配列で持つ', () => {
+    const index = indexTrainedBodyParts([
+      { date: '2026-10-12', body_parts: ['legs', 'back'] },
+      { date: '2026-10-12', body_parts: ['chest', 'back'] },
+      { date: '2026-10-13', body_parts: [] },
+    ])
+
+    expect([...index]).toEqual([
+      ['2026-10-12', ['chest', 'back', 'legs']],
+      ['2026-10-13', []],
+    ])
   })
 })

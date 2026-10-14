@@ -5,7 +5,7 @@ from datetime import date, datetime, time, timedelta, tzinfo
 from decimal import ROUND_HALF_UP, Decimal
 
 from common.errors import BusinessRuleViolation
-from features.exercise.types import CalculationBasis, TrainingMaxUpdate
+from features.exercise.types import BodyPart, CalculationBasis, TrainingMaxUpdate
 from features.program.types import PlannedExercise
 from features.training_log.types import (
     DayOption,
@@ -85,6 +85,11 @@ def list_top_sets(log: TrainingLog, *, bases: Mapping[int, CalculationBasis]) ->
         if top_set is not None:
             top_sets.append(TopSet(exercise_name=basis.name, exercise_set=top_set))
     return tuple(top_sets)
+
+
+def list_trained_body_parts(log: TrainingLog, *, body_parts: Mapping[int, BodyPart]) -> tuple[BodyPart, ...]:
+    trained = {body_parts[performed.exercise_id] for performed in log.exercises if len(performed.sets) > 0}
+    return tuple(body_part for body_part in BodyPart if body_part in trained)
 
 
 def calculate_target_weight(

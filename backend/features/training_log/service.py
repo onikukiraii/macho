@@ -27,6 +27,7 @@ from features.training_log._pure import (
     list_day_statuses,
     list_export_dates,
     list_top_sets,
+    list_trained_body_parts,
     validate_period,
     validate_training_log_date,
 )
@@ -301,12 +302,16 @@ def _summarize(
     on: date,
 ) -> list[TrainingLogSummary]:
     bases = exercise_service.get_calculation_bases(exercise_repo, on=on)
+    body_parts = {
+        resolved.exercise.id: resolved.exercise.body_part for resolved in exercise_service.list_exercises(exercise_repo)
+    }
     scheduled_days = _index_scheduled_days(program_repo, [training_log.date for training_log in training_logs])
     return [
         TrainingLogSummary(
             training_log=training_log,
             scheduled_day=_lookup(scheduled_days, training_log.program_day_id),
             top_sets=list_top_sets(training_log, bases=bases),
+            body_parts=list_trained_body_parts(training_log, body_parts=body_parts),
         )
         for training_log in training_logs
     ]

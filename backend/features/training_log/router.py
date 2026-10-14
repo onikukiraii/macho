@@ -324,6 +324,7 @@ def _to_summary_response(summary: TrainingLogSummary) -> TrainingLogSummaryRespo
             )
             for top_set in summary.top_sets
         ],
+        body_parts=list(summary.body_parts),
     )
 
 

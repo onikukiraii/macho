@@ -2,6 +2,7 @@ import datetime as dt
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from features.exercise.types import BodyPart
 from features.program.types import Weekday
 from features.training_log.types import DayStatus
 
@@ -33,6 +34,7 @@ class TrainingLogSummaryResponse(BaseModel):
     day_label: str | None
     week_label: str | None
     top_sets: list[TopSetResponse]
+    body_parts: list[BodyPart]
 
 
 class DayOptionResponse(BaseModel):

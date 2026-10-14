@@ -25,7 +25,7 @@ class DbTrainingLogRepository:
         return _to_domain(self._get_row(uid))
 
     def get_by_performed_uid(self, performed_uid: str) -> TrainingLog:
-        return _to_domain(self._get_performed_row(performed_uid).training_log)
+        return _to_domain(self._get_performed_row(performed_uid, for_update=False).training_log)
 
     def get_latest(self) -> TrainingLog | None:
         statement = _select_logs().order_by(TrainingLogRow.date.desc(), TrainingLogRow.id.desc())
@@ -166,7 +166,7 @@ class DbTrainingLogRepository:
             raise NotFound(f"トレーニング記録が見つかりません: uid={uid}")
         return row
 
-    def _get_performed_row(self, performed_uid: str, *, for_update: bool = False) -> PerformedExerciseRow:
+    def _get_performed_row(self, performed_uid: str, *, for_update: bool) -> PerformedExerciseRow:
         statement = select(PerformedExerciseRow).where(PerformedExerciseRow.uid == performed_uid)
         if for_update:
             statement = statement.with_for_update()

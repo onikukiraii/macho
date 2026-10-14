@@ -303,4 +303,22 @@ describe('PerformedExerciseCard', () => {
 
     expect(screen.getByRole('spinbutton', { name: 'セット2の重量' })).toHaveValue(null)
   })
+
+  it('メモを入力して欄を離れると、実施種目の uid とメモでメモを保存する', async () => {
+    vi.mocked(trainingLogsApi.updateExerciseMemo).mockResolvedValue({
+      uid: 'log-1',
+      date: '2026-10-14',
+      day_label: null,
+      week_label: null,
+      guide_date: null,
+      memo: '',
+      exercises: [buildPerformedExercise({ memo: '調子が良い' })],
+    })
+    renderCard(buildPerformedExercise({}))
+
+    fireEvent.change(screen.getByRole('textbox', { name: 'メモ' }), { target: { value: '調子が良い' } })
+    fireEvent.blur(screen.getByRole('textbox', { name: 'メモ' }))
+
+    await waitFor(() => expect(trainingLogsApi.updateExerciseMemo).toHaveBeenCalledWith('performed-1', '調子が良い'))
+  })
 })

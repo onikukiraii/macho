@@ -1,9 +1,10 @@
 import { fireEvent } from '@testing-library/react'
-import { Route, Routes } from 'react-router-dom'
+import { Route, Routes, useParams } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { components } from '@/api/schema'
 import { exercisesApi, restTimerApi, trainingLogsApi } from '@/api/fetcher'
 import { ExerciseEditPage } from '@/pages/ExerciseEditPage'
+import { Toaster } from '@/components/ui/sonner'
 import { ExercisePickerPage } from '@/pages/ExercisePickerPage'
 import { TrainingLogPage } from '@/pages/TrainingLogPage'
 import { render, screen, waitFor } from '@/test/utils'
@@ -62,6 +63,10 @@ const TRAINING_LOG_WITH_CREATED_EXERCISE: components['schemas']['TrainingLogDeta
   ],
 }
 
+function RecordScreenStub() {
+  return <p>記録の画面 {useParams().uid}</p>
+}
+
 beforeEach(() => {
   vi.mocked(restTimerApi.get).mockResolvedValue(null)
   vi.mocked(exercisesApi.list).mockResolvedValue([buildExercise({})])
@@ -96,20 +101,62 @@ describe('ExercisePickerPage', () => {
     )
   })
 
-  it('種目を差し替えると、記録を取り直さずに差し替え先の種目で更新して記録の画面へ戻る', async () => {
-    window.history.pushState({}, '', '/training-logs/log-1/exercise-picker?replace=performed-1')
-    vi.mocked(trainingLogsApi.replaceExercise).mockResolvedValue(TRAINING_LOG_WITH_CREATED_EXERCISE)
-    render(
-      <Routes>
-        <Route path="/training-logs/:uid" element={<p>記録の画面</p>} />
-        <Route path="/training-logs/:uid/exercise-picker" element={<ExercisePickerPage />} />
-      </Routes>,
-    )
+  describe('差し替え', () => {
+    function renderReplacing(): void {
+      window.history.pushState({}, '', '/training-logs/log-1/exercise-picker?replace=performed-1')
+      render(
+        <>
+          <Toaster />
+          <Routes>
+            <Route path="/training-logs/:uid" element={<RecordScreenStub />} />
+            <Route path="/training-logs/:uid/exercise-picker" element={<ExercisePickerPage />} />
+          </Routes>
+        </>,
+      )
+    }
 
-    fireEvent.click(await screen.findByRole('button', { name: 'スクワット' }))
+    it('種目を差し替えると、URL の記録の画面へ戻る', async () => {
+      vi.mocked(trainingLogsApi.replaceExercise).mockResolvedValue(TRAINING_LOG_WITH_CREATED_EXERCISE)
+      renderReplacing()
 
-    expect(await screen.findByText('記録の画面')).toBeInTheDocument()
-    expect(trainingLogsApi.replaceExercise).toHaveBeenCalledWith('performed-1', 'exercise-1')
-    expect(trainingLogsApi.get).not.toHaveBeenCalled()
+      fireEvent.click(await screen.findByRole('button', { name: 'スクワット' }))
+
+      expect(await screen.findByText('記録の画面 log-1')).toBeInTheDocument()
+    })
+
+    it('種目を差し替えると、差し替える実施種目と差し替え先の種目で更新する', async () => {
+      vi.mocked(trainingLogsApi.replaceExercise).mockResolvedValue(TRAINING_LOG_WITH_CREATED_EXERCISE)
+      renderReplacing()
+
+      fireEvent.click(await screen.findByRole('button', { name: 'スクワット' }))
+
+      await waitFor(() => expect(trainingLogsApi.replaceExercise).toHaveBeenCalledWith('performed-1', 'exercise-1'))
+    })
+
+    it('種目を差し替えると、記録を取り直さない', async () => {
+      vi.mocked(trainingLogsApi.replaceExercise).mockResolvedValue(TRAINING_LOG_WITH_CREATED_EXERCISE)
+      renderReplacing()
+
+      fireEvent.click(await screen.findByRole('button', { name: 'スクワット' }))
+      await screen.findByText('記録の画面 log-1')
+
+      expect(trainingLogsApi.get).not.toHaveBeenCalled()
+    })
+
+    it('差し替えに失敗すると、トーストを表示して種目の選択画面に留まり、もう一度選択できる', async () => {
+      vi.mocked(trainingLogsApi.replaceExercise)
+        .mockRejectedValueOnce(new Error('サーバーとの通信に失敗しました'))
+        .mockResolvedValue(TRAINING_LOG_WITH_CREATED_EXERCISE)
+      renderReplacing()
+
+      fireEvent.click(await screen.findByRole('button', { name: 'スクワット' }))
+
+      expect(await screen.findByText('種目を差し替えできませんでした')).toBeInTheDocument()
+      expect(screen.queryByText('記録の画面 log-1')).not.toBeInTheDocument()
+
+      fireEvent.click(screen.getByRole('button', { name: 'スクワット' }))
+
+      expect(await screen.findByText('記録の画面 log-1')).toBeInTheDocument()
+    })
   })
 })

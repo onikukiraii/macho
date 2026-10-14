@@ -2,7 +2,7 @@ import { Fragment, useId, useRef, useState, type MouseEvent, type ReactElement }
 import { Link } from 'react-router-dom'
 import { format, parseISO } from 'date-fns'
 import type { components } from '@/api/schema'
-import { Button } from '@/components/dads/Button'
+import { Button } from '@/components/Button'
 import { ErrorText } from '@/components/dads/ErrorText'
 import { PerformedExerciseMemoField } from '@/components/PerformedExerciseMemoField'
 import { RirSheet } from '@/components/RirSheet'
@@ -34,7 +34,7 @@ type PerformedExerciseCardProps = {
 function SetNumberButton({ setNumber, onLongPress }: { setNumber: number; onLongPress: () => void }): ReactElement {
   const longPressHandlers = useLongPress(onLongPress)
   return (
-    <button type="button" {...longPressHandlers} className="h-8 select-none text-dns-14B-130">
+    <button type="button" {...longPressHandlers} className="h-11 select-none text-dns-14B-130">
       {setNumber}
     </button>
   )
@@ -111,7 +111,7 @@ export function PerformedExerciseCard({
           <Link
             to={replaceExerciseHref}
             onClick={(event) => onNavigate(event, replaceExerciseHref)}
-            className="text-dns-14N-130 text-primary underline"
+            className="flex min-h-11 items-center px-1 text-dns-14N-130 text-primary underline"
           >
             差し替え
           </Link>
@@ -119,14 +119,18 @@ export function PerformedExerciseCard({
       </div>
       {saveFailed && <ErrorText>セットを保存できませんでした</ErrorText>}
       <PlannedSummary performedExercise={performedExercise} />
-      <p className="text-dns-14N-130 text-muted-foreground">
-        セット番号を長押しすると、前のセットの重量・回数・RIR をコピーします
-      </p>
-      <div className="flex gap-2 overflow-x-auto pb-1">
+      <div className="flex gap-2">
+        <div aria-hidden className="flex w-8 shrink-0 flex-col gap-1 text-dns-14N-130 text-muted-foreground">
+          <span className="h-11" />
+          <span className="flex h-12 items-center">kg</span>
+          <span className="flex h-12 items-center">回</span>
+          <span className="flex h-12 items-center">RIR</span>
+        </div>
+        <div className="flex grow gap-2 overflow-x-auto pb-1">
         {columns.map((column, index) => (
-          <div key={index} className="flex w-16 shrink-0 flex-col items-stretch gap-1 text-center">
+          <div key={index} className="flex min-w-16 flex-1 flex-col items-stretch gap-1 text-center">
             {index === 0 ? (
-              <span className="flex h-8 items-center justify-center text-dns-14B-130">1</span>
+              <span className="flex h-11 items-center justify-center text-dns-14B-130">1</span>
             ) : (
               <SetNumberButton setNumber={index + 1} onLongPress={() => commitColumns(copyPreviousColumn(columns, index))} />
             )}
@@ -173,6 +177,7 @@ export function PerformedExerciseCard({
             </button>
           </div>
         ))}
+        </div>
       </div>
       {columns.map((column, index) => (
         <Fragment key={index}>
@@ -186,11 +191,11 @@ export function PerformedExerciseCard({
           )}
         </Fragment>
       ))}
-      <div className="flex gap-2">
+      <div className="grid grid-cols-2 gap-2">
         <Button
           size="md"
           variant="outline"
-          className="dark:bg-transparent dark:text-key-300"
+          className="w-full"
           aria-disabled={columnLimitReached}
           aria-describedby={columnLimitReached ? addColumnReasonId : undefined}
           onClick={() => !columnLimitReached && editColumns(appendColumn(columns))}
@@ -200,6 +205,7 @@ export function PerformedExerciseCard({
         <Button
           size="md"
           variant="solid-fill"
+          className="w-full"
           onClick={() =>
             onStartRest(
               performedExercise.default_rest_seconds,

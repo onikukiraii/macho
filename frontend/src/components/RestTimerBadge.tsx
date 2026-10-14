@@ -1,5 +1,5 @@
 import { Timer } from 'lucide-react'
-import { Button } from '@/components/dads/Button'
+import { Button } from '@/components/Button'
 import { formatRestTime } from '@/lib/restTimer'
 
 type RestTimerBadgeProps = {

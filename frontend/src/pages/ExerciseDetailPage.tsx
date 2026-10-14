@@ -2,10 +2,12 @@ import { useState, type ReactElement } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { exercisesApi, trainingLogsApi } from '@/api/fetcher'
 import { EXERCISE_KIND_LABEL, type ExerciseDetail } from '@/api/constants'
-import { Button } from '@/components/dads/Button'
+import { BackLink } from '@/components/BackLink'
+import { Button } from '@/components/Button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { TrainingMaxChangeSheet } from '@/components/TrainingMaxChangeSheet'
 import { useLoadable, type Loadable } from '@/hooks/useLoadable'
+import { useNavigateBack } from '@/hooks/useNavigateBack'
 import { formatDateString, formatLocalDate } from '@/lib/dates'
 import { formatSet } from '@/lib/exercises'
 
@@ -30,7 +32,7 @@ function TrainingMaxSection({ detail, onChanged }: TrainingMaxSectionProps): Rea
     <section className="flex flex-col gap-3">
       <div className="flex items-center justify-between gap-4">
         <h2 className="text-std-20B-150">トレーニングマックス</h2>
-        <Button size="sm" variant="outline" className="dark:bg-transparent dark:text-key-300" onClick={() => setChanging(true)}>
+        <Button size="sm" variant="outline" onClick={() => setChanging(true)}>
           変更
         </Button>
       </div>
@@ -87,9 +89,13 @@ function ExerciseHistorySection({ uid }: { uid: string }): ReactElement {
 
 function ExerciseDetailView({ uid }: { uid: string }): ReactElement {
   const [detail, setDetail] = useLoadable(() => exercisesApi.get(uid), [uid], DETAIL_FAILURE_MESSAGE)
+  const navigateBack = useNavigateBack()
 
   return (
     <div className="flex flex-col gap-6 p-4">
+      <BackLink to="/exercises" onClick={navigateBack}>
+        戻る
+      </BackLink>
       <header className="flex items-start justify-between gap-4">
         <div className="flex flex-col gap-1">
           {detail.status === 'loaded' ? (
@@ -104,7 +110,7 @@ function ExerciseDetailView({ uid }: { uid: string }): ReactElement {
             </>
           ) : null}
         </div>
-        <Button asChild size="sm" variant="outline" className="dark:bg-transparent dark:text-key-300">
+        <Button asChild size="sm" variant="outline" className="shrink-0">
           <Link to={`/exercises/${uid}/edit`}>編集</Link>
         </Button>
       </header>

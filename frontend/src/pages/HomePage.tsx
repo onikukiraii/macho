@@ -4,7 +4,7 @@ import { addMonths, format, parseISO } from 'date-fns'
 import { Plus } from 'lucide-react'
 import type { components } from '@/api/schema'
 import { trainingLogsApi } from '@/api/fetcher'
-import { Button } from '@/components/dads/Button'
+import { Button } from '@/components/Button'
 import { DaySelectSheet } from '@/components/DaySelectSheet'
 import { MonthCalendar } from '@/components/MonthCalendar'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -73,7 +73,7 @@ export function HomePage(): ReactElement {
   }
 
   return (
-    <div className="flex flex-col gap-6 p-4">
+    <div className="flex flex-col gap-6 px-4 pt-4 pb-20">
       <h1 className="text-std-24B-150">ホーム</h1>
       <MonthCalendar
         year={year}
@@ -128,7 +128,7 @@ export function HomePage(): ReactElement {
         type="button"
         aria-label="記録を追加"
         onClick={openDaySelect}
-        className="fixed right-4 bottom-24 flex size-14 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg"
+        className="fixed right-4 bottom-[calc(5rem+env(safe-area-inset-bottom))] flex size-14 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg"
       >
         <Plus aria-hidden className="size-7" />
       </button>

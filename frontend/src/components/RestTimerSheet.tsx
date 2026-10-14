@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { BottomSheet } from '@/components/BottomSheet'
-import { Button } from '@/components/dads/Button'
+import { Button } from '@/components/Button'
 import type { NotificationStatus, RunningRestTimer } from '@/hooks/useRestTimer'
 import { formatRestTime, remainingRestRatio } from '@/lib/restTimer'
 
@@ -60,12 +60,13 @@ export function RestTimerSheet({ open, onClose, running, notificationStatus, onE
           <p className="text-dns-14N-130 text-muted-foreground">通知はオフです。終了の通知は届きません</p>
         )}
         <div className="grid w-full grid-cols-2 gap-4">
-          <Button size="lg" variant="outline" className="dark:bg-transparent dark:text-key-300" disabled={extendPending} onClick={() => void extendRestTimerOnce()}>
+          <Button size="lg" variant="outline" className="w-full" disabled={extendPending} onClick={() => void extendRestTimerOnce()}>
             +30秒
           </Button>
           <Button
             size="lg"
             variant="solid-fill"
+            className="w-full"
             onClick={() => void stopRestTimerAndClose()}
           >
             停止

@@ -85,7 +85,12 @@ export function ProgramPage(): ReactElement {
           {formatDateString(program.start_date)} 開始 / 全{program.week_count}週
         </p>
       </header>
-      {program.design_note !== '' && <p className="whitespace-pre-wrap text-dns-16N-130">{program.design_note}</p>}
+      {program.design_note !== '' && (
+        <Disclosure className="rounded-8 bg-card p-3">
+          <DisclosureSummary className="text-std-16B-170">設計メモ</DisclosureSummary>
+          <p className="whitespace-pre-wrap pt-2 text-dns-16N-130">{program.design_note}</p>
+        </Disclosure>
+      )}
       <div className="flex flex-col gap-3">
         {program.weeks.map((week) => {
           const collapsed = nextWeek !== undefined && week.week > nextWeek

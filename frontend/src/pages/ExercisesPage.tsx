@@ -2,7 +2,7 @@ import type { ReactElement } from 'react'
 import { Link } from 'react-router-dom'
 import { exercisesApi } from '@/api/fetcher'
 import { BODY_PART_LABEL, EXERCISE_KIND_LABEL, type Exercise } from '@/api/constants'
-import { Button } from '@/components/dads/Button'
+import { Button } from '@/components/Button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useLoadable } from '@/hooks/useLoadable'
 import { groupExercisesByBodyPart } from '@/lib/exercises'
@@ -20,11 +20,16 @@ function ExerciseRow({ exercise }: { exercise: Exercise }): ReactElement {
           <span className="text-std-16B-170">{exercise.name}</span>
           <span className="text-dns-14N-130 text-muted-foreground">{EXERCISE_KIND_LABEL[exercise.kind]}</span>
         </span>
-        <span className="text-dns-14N-130 text-muted-foreground">
-          {exercise.kind === 'derived'
-            ? `${exercise.parent_name} × ${exercise.coefficient}`
-            : `トレーニングマックス ${exercise.current_training_max === null ? '未設定' : `${exercise.current_training_max} kg`}`}
-        </span>
+        {exercise.kind === 'derived' && (
+          <span className="shrink-0 text-dns-14N-130 text-muted-foreground">
+            {exercise.parent_name} × {exercise.coefficient}
+          </span>
+        )}
+        {exercise.kind === 'training_max' && (
+          <span className="shrink-0 text-dns-14N-130 text-muted-foreground">
+            {exercise.current_training_max === null ? '未設定' : `${exercise.current_training_max} kg`}
+          </span>
+        )}
       </Link>
     </li>
   )

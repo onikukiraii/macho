@@ -25,8 +25,15 @@ export default defineConfig([
         patterns: [{
           regex: '^@/components/ui/(alert|badge|button|checkbox|dialog|input|label|select|separator|sheet|table)$',
           message: 'デジタル庁デザインシステムに同じ部品があります。src/components/dads/ の部品を使ってください。',
+        }, {
+          regex: '^@/components/dads/Button$',
+          message: 'ダークモードの配色を持つ @/components/Button を使ってください。',
         }],
       }],
     },
+  },
+  {
+    files: ['src/components/Button.tsx'],
+    rules: { 'no-restricted-imports': 'off' },
   },
 ])

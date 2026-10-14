@@ -3,7 +3,7 @@ import { toast } from 'sonner'
 import type { Exercise, ExerciseDetail } from '@/api/constants'
 import { exercisesApi } from '@/api/fetcher'
 import { BottomSheet } from '@/components/BottomSheet'
-import { Button } from '@/components/dads/Button'
+import { Button } from '@/components/Button'
 import { Input } from '@/components/dads/Input'
 import { InputField } from '@/components/InputField'
 

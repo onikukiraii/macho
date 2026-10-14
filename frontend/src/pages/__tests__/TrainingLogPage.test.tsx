@@ -106,7 +106,7 @@ describe('TrainingLogPage', () => {
     expect(window.history.length).toBe(historyLength)
   })
 
-  it('未保存の種目があるときにホームへ戻るを押すと、移動する前に確認を開く', async () => {
+  it('未保存の種目があるときにホームへのリンクを押すと、移動する前に確認を開く', async () => {
     vi.mocked(trainingLogsApi.get).mockResolvedValue(
       buildTrainingLog({
         exercises: [
@@ -131,7 +131,7 @@ describe('TrainingLogPage', () => {
     fireEvent.change(screen.getByRole('spinbutton', { name: 'セット1の回数' }), { target: { value: '5' } })
     fireEvent.blur(screen.getByRole('spinbutton', { name: 'セット1の回数' }))
     await screen.findByRole('button', { name: '未保存' })
-    fireEvent.click(screen.getByRole('link', { name: 'ホームへ戻る' }))
+    fireEvent.click(screen.getByRole('link', { name: 'ホーム' }))
 
     expect(screen.getByRole('dialog', { name: '未保存のセットがあります' })).toHaveAttribute('open')
   })

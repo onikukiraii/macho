@@ -6,7 +6,7 @@ import { Textarea } from '@/components/dads/Textarea'
 import { InputField } from '@/components/InputField'
 
 type PerformedExerciseMemoFieldProps = {
-  performedExercise: Pick<components['schemas']['PerformedExerciseResponse'], 'uid' | 'exercise_uid' | 'memo'>
+  performedExercise: Pick<components['schemas']['PerformedExerciseResponse'], 'uid' | 'memo'>
 }
 
 export function PerformedExerciseMemoField({ performedExercise }: PerformedExerciseMemoFieldProps): ReactElement {
@@ -14,7 +14,7 @@ export function PerformedExerciseMemoField({ performedExercise }: PerformedExerc
 
   async function savePerformedExerciseMemo(): Promise<void> {
     try {
-      await trainingLogsApi.updateExercise(performedExercise.uid, { exercise_uid: performedExercise.exercise_uid, memo })
+      await trainingLogsApi.updateExerciseMemo(performedExercise.uid, memo)
     } catch {
       toast.error('メモを保存できませんでした')
     }

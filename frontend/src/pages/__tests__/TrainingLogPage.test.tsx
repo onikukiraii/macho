@@ -7,7 +7,7 @@ import { TrainingLogPage } from '@/pages/TrainingLogPage'
 import { render, screen, waitFor } from '@/test/utils'
 
 vi.mock('@/api/fetcher', () => ({
-  trainingLogsApi: { get: vi.fn(), update: vi.fn(), delete: vi.fn(), replaceSets: vi.fn(), updateExercise: vi.fn() },
+  trainingLogsApi: { get: vi.fn(), update: vi.fn(), delete: vi.fn(), replaceSets: vi.fn(), updateExerciseMemo: vi.fn() },
   restTimerApi: { get: vi.fn(), start: vi.fn(), extend: vi.fn(), stop: vi.fn(), subscribe: vi.fn() },
 }))
 

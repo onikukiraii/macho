@@ -15,7 +15,8 @@ vi.mock('@/api/fetcher', () => ({
     update: vi.fn(),
     delete: vi.fn(),
     addExercise: vi.fn(),
-    updateExercise: vi.fn(),
+    replaceExercise: vi.fn(),
+    updateExerciseMemo: vi.fn(),
     replaceSets: vi.fn(),
   },
   restTimerApi: { get: vi.fn(), start: vi.fn(), extend: vi.fn(), stop: vi.fn(), subscribe: vi.fn() },
@@ -93,5 +94,22 @@ describe('ExercisePickerPage', () => {
     await waitFor(() =>
       expect(trainingLogsApi.addExercise).toHaveBeenCalledWith('log-1', { exercise_uid: 'exercise-created' }),
     )
+  })
+
+  it('種目を差し替えると、記録を取り直さずに差し替え先の種目で更新して記録の画面へ戻る', async () => {
+    window.history.pushState({}, '', '/training-logs/log-1/exercise-picker?replace=performed-1')
+    vi.mocked(trainingLogsApi.replaceExercise).mockResolvedValue(TRAINING_LOG_WITH_CREATED_EXERCISE)
+    render(
+      <Routes>
+        <Route path="/training-logs/:uid" element={<p>記録の画面</p>} />
+        <Route path="/training-logs/:uid/exercise-picker" element={<ExercisePickerPage />} />
+      </Routes>,
+    )
+
+    fireEvent.click(await screen.findByRole('button', { name: 'スクワット' }))
+
+    expect(await screen.findByText('記録の画面')).toBeInTheDocument()
+    expect(trainingLogsApi.replaceExercise).toHaveBeenCalledWith('performed-1', 'exercise-1')
+    expect(trainingLogsApi.get).not.toHaveBeenCalled()
   })
 })

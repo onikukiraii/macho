@@ -6,7 +6,7 @@ import { PerformedExerciseCard } from '@/components/PerformedExerciseCard'
 import { render, screen, waitFor } from '@/test/utils'
 
 vi.mock('@/api/fetcher', () => ({
-  trainingLogsApi: { replaceSets: vi.fn(), updateExercise: vi.fn() },
+  trainingLogsApi: { replaceSets: vi.fn(), updateExerciseMemo: vi.fn() },
 }))
 
 type PerformedExercise = components['schemas']['PerformedExerciseResponse']

@@ -28,10 +28,7 @@ function ExercisePicker({ trainingLogUid }: { trainingLogUid: string }): ReactEl
         if (replacingUid === null) {
           await trainingLogsApi.addExercise(trainingLogUid, { exercise_uid: exerciseUid })
         } else {
-          const trainingLog = await trainingLogsApi.get(trainingLogUid)
-          const replacing = trainingLog.exercises.find((performed) => performed.uid === replacingUid)
-          if (replacing === undefined) throw new Error('差し替える種目が見つかりません')
-          await trainingLogsApi.updateExercise(replacingUid, { exercise_uid: exerciseUid, memo: replacing.memo })
+          await trainingLogsApi.replaceExercise(replacingUid, exerciseUid)
         }
         navigate(`/training-logs/${trainingLogUid}`, { replace: true })
       } catch {

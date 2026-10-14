@@ -76,11 +76,18 @@ export const trainingLogsApi = {
     unwrap<Schemas['TrainingLogDetailResponse']>(
       await api.POST('/api/training-logs/{uid}/exercises', { params: { path: { uid } }, body }),
     ),
-  updateExercise: async (performedUid: string, body: Schemas['PerformedExerciseUpdateParams']) =>
+  replaceExercise: async (performedUid: string, exerciseUid: string) =>
     unwrap<Schemas['TrainingLogDetailResponse']>(
-      await api.PUT('/api/training-logs/exercises/{performed_uid}', {
+      await api.PATCH('/api/training-logs/exercises/{performed_uid}', {
         params: { path: { performed_uid: performedUid } },
-        body,
+        body: { exercise_uid: exerciseUid },
+      }),
+    ),
+  updateExerciseMemo: async (performedUid: string, memo: string) =>
+    unwrap<Schemas['TrainingLogDetailResponse']>(
+      await api.PATCH('/api/training-logs/exercises/{performed_uid}', {
+        params: { path: { performed_uid: performedUid } },
+        body: { memo },
       }),
     ),
   replaceSets: async (performedUid: string, body: Schemas['SetsReplaceParams']) =>

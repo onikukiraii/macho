@@ -185,13 +185,13 @@ export interface paths {
             cookie?: never;
         };
         get?: never;
-        /** Update Performed Exercise */
-        put: operations["update_performed_exercise_api_training_logs_exercises__performed_uid__put"];
+        put?: never;
         post?: never;
         delete?: never;
         options?: never;
         head?: never;
-        patch?: never;
+        /** Update Performed Exercise */
+        patch: operations["update_performed_exercise_api_training_logs_exercises__performed_uid__patch"];
         trace?: never;
     };
     "/api/training-logs/exercises/{performed_uid}/sets": {
@@ -429,9 +429,9 @@ export interface components {
         /** PerformedExerciseUpdateParams */
         PerformedExerciseUpdateParams: {
             /** Exercise Uid */
-            exercise_uid: string;
+            exercise_uid?: string | null;
             /** Memo */
-            memo: string;
+            memo?: string | null;
         };
         /** PlannedResponse */
         PlannedResponse: {
@@ -1067,7 +1067,7 @@ export interface operations {
             };
         };
     };
-    update_performed_exercise_api_training_logs_exercises__performed_uid__put: {
+    update_performed_exercise_api_training_logs_exercises__performed_uid__patch: {
         parameters: {
             query?: never;
             header?: never;

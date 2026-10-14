@@ -25,7 +25,7 @@ FastAPI + SQLAlchemy + Alembic / Python 3.14 / パッケージ管理: uv
 | PATCH | `/api/training-logs/{uid}` | トレーニング記録のメモの更新 |
 | DELETE | `/api/training-logs/{uid}` | トレーニング記録の削除 |
 | POST | `/api/training-logs/{uid}/exercises` | 実施種目の追加 |
-| PUT | `/api/training-logs/exercises/{performed_uid}` | 実施種目の差し替えとメモの更新 |
+| PATCH | `/api/training-logs/exercises/{performed_uid}` | 実施種目の差し替えとメモの更新 |
 | PUT | `/api/training-logs/exercises/{performed_uid}/sets` | 実施種目のセットの置き換え |
 | GET | `/api/training-logs/by-exercise/{exercise_uid}` | 種目ごとの履歴の取得 |
 | GET | `/api/training-logs/program-progress` | 進行中のプログラムの Day ごとの消化状況の取得 |

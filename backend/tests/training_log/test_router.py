@@ -49,9 +49,8 @@ class TestUpdateTrainingLog:
                 id="トレーニング記録のメモ",
             ),
             pytest.param(
-                lambda client, log, bench_uid: client.put(
-                    f"/api/training-logs/exercises/{log['exercises'][0]['uid']}",
-                    json={"exercise_uid": bench_uid, "memo": "肩に違和感"},
+                lambda client, log, bench_uid: client.patch(
+                    f"/api/training-logs/exercises/{log['exercises'][0]['uid']}", json={"memo": "肩に違和感"}
                 ),
                 lambda detail: detail["exercises"][0]["memo"],
                 id="種目のメモ",
@@ -70,6 +69,38 @@ class TestUpdateTrainingLog:
         reopened = today_client.get(f"/api/training-logs/{log['uid']}")
 
         assert (reopened.status_code, read_memo(reopened.json())) == (200, "肩に違和感")
+
+
+class TestUpdatePerformedExercise:
+    def test_メモのある種目を差し替えてもその種目のメモは残る(self, today_client: TestClient) -> None:
+        log, _ = _create_log_with_bench(today_client)
+        performed_uid = log["exercises"][0]["uid"]
+        squat_uid = today_client.post("/api/exercises", json={**BENCH, "name": "スクワット"}).json()["uid"]
+        today_client.patch(f"/api/training-logs/exercises/{performed_uid}", json={"memo": "肩に違和感"})
+
+        resp = today_client.patch(f"/api/training-logs/exercises/{performed_uid}", json={"exercise_uid": squat_uid})
+
+        exercise = resp.json()["exercises"][0]
+        assert (resp.status_code, exercise["exercise_name"], exercise["memo"]) == (200, "スクワット", "肩に違和感")
+
+    @pytest.mark.parametrize(
+        "body",
+        [
+            pytest.param({"exercise_uid": "x", "memo": "メモ"}, id="種目とメモの両方"),
+            pytest.param({}, id="どちらも無い"),
+            pytest.param({"exercise_uid": None}, id="種目が_null"),
+            pytest.param({"memo": None}, id="メモが_null"),
+            pytest.param({"exercise_uid": "x", "memo": None}, id="種目と_null_のメモ"),
+        ],
+    )
+    def test_種目とメモのどちらか1つだけを送らない更新は_422_で受け付けない(
+        self, today_client: TestClient, body: dict[str, Any]
+    ) -> None:
+        log, _ = _create_log_with_bench(today_client)
+
+        resp = today_client.patch(f"/api/training-logs/exercises/{log['exercises'][0]['uid']}", json=body)
+
+        assert (resp.status_code, [error["type"] for error in resp.json()["detail"]]) == (422, ["value_error"])
 
 
 class TestUpdateSets:

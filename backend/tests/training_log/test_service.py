@@ -23,8 +23,8 @@ from features.training_log.service import (
     get_training_log,
     list_exercise_history,
     list_training_logs,
+    replace_performed_exercise,
     replace_sets,
-    update_performed_exercise,
 )
 from features.training_log.types import ExerciseSet, PreviousResult, TrainingLogCreated
 
@@ -639,7 +639,7 @@ class TestGetTrainingLog:
         )
 
 
-class TestUpdatePerformedExercise:
+class TestReplacePerformedExercise:
     def test_差し替えると予定の回数と_RPE_のまま差し替え先の換算係数で目標重量を計算する(
         self, repo: DbTrainingLogRepository, exercise_repo: DbExerciseRepository, program_repo: DbProgramRepository
     ) -> None:
@@ -656,13 +656,12 @@ class TestUpdatePerformedExercise:
             today=date(2026, 10, 12),
         )
 
-        detail = update_performed_exercise(
+        detail = replace_performed_exercise(
             repo,
             exercise_repo=exercise_repo,
             program_repo=program_repo,
             performed_uid=created.training_log.exercises[0].uid,
             exercise_uid=pause_bench.exercise.uid,
-            memo="",
         )
 
         performed = detail.exercises[0]

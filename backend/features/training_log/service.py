@@ -164,17 +164,28 @@ def add_performed_exercise(
     return _build_detail(updated, repo=repo, exercise_repo=exercise_repo, program_repo=program_repo)
 
 
-def update_performed_exercise(
+def replace_performed_exercise(
     repo: TrainingLogRepository,
     *,
     exercise_repo: ExerciseRepository,
     program_repo: ProgramRepository,
     performed_uid: str,
     exercise_uid: str,
-    memo: str,
 ) -> TrainingLogDetail:
     exercise = exercise_service.get_exercise(exercise_repo, uid=exercise_uid).exercise.exercise
-    training_log = repo.update_performed_exercise(performed_uid, exercise_id=exercise.id, memo=memo)
+    training_log = repo.replace_performed_exercise(performed_uid, exercise_id=exercise.id)
+    return _build_detail(training_log, repo=repo, exercise_repo=exercise_repo, program_repo=program_repo)
+
+
+def update_performed_exercise_memo(
+    repo: TrainingLogRepository,
+    *,
+    exercise_repo: ExerciseRepository,
+    program_repo: ProgramRepository,
+    performed_uid: str,
+    memo: str,
+) -> TrainingLogDetail:
+    training_log = repo.update_performed_exercise_memo(performed_uid, memo=memo)
     return _build_detail(training_log, repo=repo, exercise_repo=exercise_repo, program_repo=program_repo)
 
 

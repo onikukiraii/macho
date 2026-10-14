@@ -1,6 +1,6 @@
 import datetime as dt
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from features.program.types import Weekday
 from features.training_log.types import DayStatus
@@ -111,8 +111,15 @@ class PerformedExerciseCreateParams(BaseModel):
 
 
 class PerformedExerciseUpdateParams(BaseModel):
-    exercise_uid: str
-    memo: str = Field(max_length=1000)
+    exercise_uid: str | None = None
+    memo: str | None = Field(default=None, max_length=1000)
+
+    @model_validator(mode="after")
+    def _require_exactly_one_field(self) -> PerformedExerciseUpdateParams:
+        sent = self.model_fields_set
+        if len(sent) != 1 or getattr(self, next(iter(sent))) is None:
+            raise ValueError("exercise_uid と memo のどちらか1つだけを指定してください")
+        return self
 
 
 class SetsReplaceParams(BaseModel):

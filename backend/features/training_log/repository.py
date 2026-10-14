@@ -122,9 +122,14 @@ class DbTrainingLogRepository:
         self._session.commit()
         return self.get(uid)
 
-    def update_performed_exercise(self, performed_uid: str, *, exercise_id: int, memo: str) -> TrainingLog:
+    def replace_performed_exercise(self, performed_uid: str, *, exercise_id: int) -> TrainingLog:
         row = self._get_performed_row(performed_uid)
         row.exercise_id = exercise_id
+        self._session.commit()
+        return self.get_by_performed_uid(performed_uid)
+
+    def update_performed_exercise_memo(self, performed_uid: str, *, memo: str) -> TrainingLog:
+        row = self._get_performed_row(performed_uid)
         row.memo = memo
         self._session.commit()
         return self.get_by_performed_uid(performed_uid)

@@ -323,7 +323,7 @@ def validate_training_logs(training_logs: Sequence[LegacyTrainingLog], *, today:
             )
             _validate_api_params(
                 PerformedExerciseUpdateParams,
-                {"exercise_uid": "", "memo": exercise.memo},
+                {"memo": exercise.memo},
                 reason=(
                     f"KINNIK の CSV のメモが受け付けられる範囲を外れています: {training_log.date} の {exercise.name}"
                 ),
@@ -585,12 +585,11 @@ def _create_training_log(
             sets=legacy_exercise.sets,
         )
         if legacy_exercise.memo != "":
-            training_log_service.update_performed_exercise(
+            training_log_service.update_performed_exercise_memo(
                 repo,
                 exercise_repo=exercise_repo,
                 program_repo=program_repo,
                 performed_uid=performed_uid,
-                exercise_uid=exercise.uid,
                 memo=legacy_exercise.memo,
             )
 

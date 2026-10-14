@@ -1,13 +1,21 @@
 from common.db.entities.base import Base
-from common.db.entities.invoice import InvoiceLineRow, InvoiceRow
-from common.db.entities.review import ReviewFindingRow, ReviewRow
-from common.db.entities.user import UserRow
+from common.db.entities.exercise import ExerciseRow, TrainingMaxEvaluationRow, TrainingMaxRow
+from common.db.entities.program import PlannedExerciseRow, ProgramDayRow, ProgramRow, ProgramWeekRow
+from common.db.entities.rest_timer import PushSubscriptionRow, RestTimerRow
+from common.db.entities.training_log import ExerciseSetRow, PerformedExerciseRow, TrainingLogRow
 
 __all__ = [
     "Base",
-    "InvoiceLineRow",
-    "InvoiceRow",
-    "ReviewFindingRow",
-    "ReviewRow",
-    "UserRow",
+    "ExerciseRow",
+    "ExerciseSetRow",
+    "PerformedExerciseRow",
+    "PlannedExerciseRow",
+    "ProgramDayRow",
+    "ProgramRow",
+    "ProgramWeekRow",
+    "PushSubscriptionRow",
+    "RestTimerRow",
+    "TrainingLogRow",
+    "TrainingMaxEvaluationRow",
+    "TrainingMaxRow",
 ]

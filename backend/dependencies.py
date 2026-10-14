@@ -1,24 +1,25 @@
 from collections.abc import Generator
+from datetime import UTC, date, datetime
 from typing import Annotated
+from zoneinfo import ZoneInfo
 
-import anthropic
-import boto3
 from fastapi import Depends
 from sqlalchemy.orm import Session
 
 from common.config import settings
 from common.db.session import SessionLocal
 from common.gateway.job_queue_celery import CeleryJobQueue
-from common.gateway.llm_claude import ClaudeLLM
-from common.gateway.protocol import LLM, JobQueue, Storage
-from common.gateway.storage_s3 import S3Storage
-from features.invoice.gateway import ReportLabPdfRenderer
-from features.invoice.protocol import InvoiceRepository, PdfRenderer
-from features.invoice.repository import DbInvoiceRepository
-from features.review.protocol import ReviewRepository
-from features.review.repository import DbReviewRepository
-from features.user.protocol import UserRepository
-from features.user.repository import DbUserRepository
+from common.gateway.protocol import JobQueue
+from common.local_date import to_local_date
+from features.exercise.protocol import ExerciseRepository
+from features.exercise.repository import DbExerciseRepository
+from features.program.protocol import ProgramRepository
+from features.program.repository import DbProgramRepository
+from features.rest_timer.gateway import WebPushSender
+from features.rest_timer.protocol import PushSender, RestTimerRepository
+from features.rest_timer.repository import DbRestTimerRepository
+from features.training_log.protocol import TrainingLogRepository
+from features.training_log.repository import DbTrainingLogRepository
 from worker.app import celery_app
 
 
@@ -33,40 +34,31 @@ def get_session() -> Generator[Session]:
 SessionDep = Annotated[Session, Depends(get_session)]
 
 
-def get_storage() -> Storage:
-    return S3Storage(
-        bucket=settings.s3_bucket,
-        client=boto3.client(
-            "s3",
-            endpoint_url=settings.s3_endpoint_url,
-            region_name=settings.s3_region,
-        ),
-    )
-
-
-def get_llm() -> LLM:
-    return ClaudeLLM(
-        client=anthropic.Anthropic(),
-        model=settings.llm_model,
-        max_tokens=settings.llm_max_tokens,
-    )
+def get_today() -> date:
+    return to_local_date(datetime.now(UTC), timezone=ZoneInfo(settings.app_timezone))
 
 
 def get_job_queue() -> JobQueue:
     return CeleryJobQueue(celery_app)
 
 
-def get_pdf_renderer() -> PdfRenderer:
-    return ReportLabPdfRenderer()
+def get_exercise_repository(session: SessionDep) -> ExerciseRepository:
+    return DbExerciseRepository(session)
 
 
-def get_user_repository(session: SessionDep) -> UserRepository:
-    return DbUserRepository(session)
+def get_program_repository(session: SessionDep) -> ProgramRepository:
+    return DbProgramRepository(session)
 
 
-def get_invoice_repository(session: SessionDep) -> InvoiceRepository:
-    return DbInvoiceRepository(session)
+def get_training_log_repository(session: SessionDep) -> TrainingLogRepository:
+    return DbTrainingLogRepository(session)
 
 
-def get_review_repository(session: SessionDep) -> ReviewRepository:
-    return DbReviewRepository(session)
+def get_rest_timer_repository(session: SessionDep) -> RestTimerRepository:
+    return DbRestTimerRepository(session)
+
+
+def get_push_sender() -> PushSender:
+    return WebPushSender(
+        vapid_private_key=settings.vapid_private_key.get_secret_value(), vapid_subject=settings.vapid_subject
+    )

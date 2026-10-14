@@ -17,10 +17,11 @@
 |------|---------|
 | 新しい機能を作る | `docs/new-api.md` |
 | 新しいテーブルを作る | `docs/new-model.md` |
+| Mac mini へデプロイする | `docs/deploy.md` |
 
 ## 開発コマンド
 
-タスクは `mise run <task>` で実行します。一覧と説明は `mise tasks` で引いてください。全サービスの起動は `docker compose up -d`（API:8000, Frontend:5173, MySQL:3309）。
+タスクは `mise run <task>` で実行します。一覧と説明は `mise tasks` で引いてください。全サービスの起動は `docker compose up -d`（API:37000, Frontend:37173, MySQL:37306）。
 
 ## コミット規約
 

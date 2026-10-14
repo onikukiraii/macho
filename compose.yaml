@@ -4,7 +4,7 @@ services:
       context: ./frontend
       dockerfile: docker/Dockerfile
     ports:
-      - 5173:5173
+      - 37173:5173
     volumes:
       - ./frontend:/app
       - /app/node_modules
@@ -16,7 +16,7 @@ services:
       context: ./backend
       dockerfile: docker/Dockerfile
     ports:
-      - 8000:8000
+      - 37000:8000
     volumes:
       - ./backend:/app
       - /app/.venv
@@ -24,13 +24,10 @@ services:
       - .env
     environment:
       DATABASE_URL: mysql+pymysql://${MYSQL_USER}:${MYSQL_PASSWORD}@db:3306/${MYSQL_DATABASE}
-      S3_ENDPOINT_URL: http://minio:9000
       CELERY_BROKER_URL: redis://redis:6379/0
     command: ["uv", "run", "fastapi", "dev", "--host", "0.0.0.0", "--port", "8000"]
     depends_on:
       - db
-      - opensearch
-      - minio
       - redis
 
   worker:
@@ -44,12 +41,10 @@ services:
       - .env
     environment:
       DATABASE_URL: mysql+pymysql://${MYSQL_USER}:${MYSQL_PASSWORD}@db:3306/${MYSQL_DATABASE}
-      S3_ENDPOINT_URL: http://minio:9000
       CELERY_BROKER_URL: redis://redis:6379/0
     command: ["uv", "run", "celery", "-A", "worker.app", "worker", "--loglevel=info"]
     depends_on:
       - db
-      - minio
       - redis
 
   db:
@@ -60,52 +55,14 @@ services:
       MYSQL_PASSWORD: ${MYSQL_PASSWORD}
       MYSQL_DATABASE: ${MYSQL_DATABASE}
     ports:
-      - 3309:3306
+      - 37306:3306
     volumes:
       - mysql-data:/var/lib/mysql
-
-  opensearch:
-    image: opensearchproject/opensearch:2
-    environment:
-      - discovery.type=single-node
-      - plugins.security.disabled=true
-      - OPENSEARCH_INITIAL_ADMIN_PASSWORD=Admin123!
-    ports:
-      - 9205:9205
-    volumes:
-      - opensearch-data:/usr/share/opensearch/data
-
-  minio:
-    image: quay.io/minio/minio
-    command: ["server", "/data", "--console-address", ":9101"]
-    environment:
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
-    ports:
-      - 9100:9000
-      - 9101:9101
-    volumes:
-      - minio-data:/data
-
-  minio-init:
-    image: quay.io/minio/mc
-    depends_on:
-      - minio
-    entrypoint:
-      - sh
-      - -c
-      - |
-        until mc alias set local http://minio:9000 ${MINIO_ROOT_USER} ${MINIO_ROOT_PASSWORD}; do sleep 1; done
-        mc mb --ignore-existing local/${S3_BUCKET}
-    env_file:
-      - .env
 
   redis:
     image: redis:7
     ports:
-      - 6399:6379
+      - 37379:6379
 
 volumes:
   mysql-data:
-  opensearch-data:
-  minio-data:

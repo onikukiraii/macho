@@ -20,6 +20,7 @@ export default defineConfig([
       globals: globals.browser,
     },
     rules: {
+      'react-hooks/exhaustive-deps': ['error', { additionalHooks: 'useLoadable' }],
       'no-restricted-imports': ['error', {
         patterns: [{
           regex: '^@/components/ui/(alert|badge|button|checkbox|dialog|input|label|select|separator|sheet|table)$',
@@ -27,10 +28,5 @@ export default defineConfig([
         }],
       }],
     },
-  },
-  {
-    // デジタル庁デザインシステムの部品へ置き換えるまで、既存の shadcn/ui の import を許可する
-    files: ['src/layouts/AppLayout.tsx', 'src/pages/DashboardPage.tsx'],
-    rules: { 'no-restricted-imports': 'off' },
   },
 ])

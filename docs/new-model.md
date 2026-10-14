@@ -40,10 +40,10 @@ class ProductRow(Base):
 
 ```python
 from common.db.entities.base import Base
+from common.db.entities.exercise import ExerciseRow
 from common.db.entities.product import ProductRow  # 追加
-from common.db.entities.user import UserRow
 
-__all__ = ["Base", "ProductRow", "UserRow"]  # 追加
+__all__ = ["Base", "ExerciseRow", "ProductRow"]  # 追加
 ```
 
 **注意: この import の追記を忘れると、次回のマイグレーション自動生成時に Alembic がテーブル削除と判断し、`op.drop_table("products")` が予期せず生成されてしまいます。**
@@ -81,7 +81,7 @@ docker compose exec db sh -c 'mysql -uroot -p"$MYSQL_ROOT_PASSWORD" "$MYSQL_DATA
 
 ### relationship と cascade（親子関係を持つテーブル）
 
-親子関係を持つテーブルの設計例です。既存コードの `invoices` と `invoice_lines` も実装サンプルとして参考になります。
+親子関係を持つテーブルの設計例です。既存コードの `training_logs` と `performed_exercises` も実装サンプルとして参考になります。
 
 ```python
 class OrderRow(Base):

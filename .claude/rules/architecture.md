@@ -10,16 +10,18 @@ backend/                     FastAPI + SQLAlchemy + Alembic / Python 3.14 / uv
 ├── main.py                  アプリのエントリーポイントとルーター登録
 ├── dependencies.py          コンポジションルート。具象クラスを注入する唯一の場所
 ├── features/                機能ディレクトリの置き場
-│   ├── user/                1機能 = 1ディレクトリ
-│   ├── invoice/
-│   └── review/
+│   ├── exercise/            1機能 = 1ディレクトリ
+│   ├── program/
+│   ├── training_log/
+│   └── rest_timer/
 ├── common/                  機能ディレクトリから参照される共通モジュール
 │   ├── db/entities/         全テーブル定義
 │   ├── db/session.py        エンジンと SessionLocal
-│   ├── gateway/             共通の外部連携。Storage / LLM / JobQueue
+│   ├── gateway/             共通の外部連携。JobQueue
 │   ├── errors.py            ドメイン例外
 │   └── config.py            環境変数
 ├── worker/                  Celery アプリと非同期タスク
+├── scripts/                 1回きりの実行スクリプト。移行
 ├── alembic/                 マイグレーション設定と履歴
 └── tests/                   機能ディレクトリに対応するテスト
 
@@ -46,11 +48,11 @@ frontend/src/                React 19 + TypeScript + Vite + Tailwind CSS v4
 | ファイル | 書くもの | 書いてはいけないもの |
 |---------|---------|-------------------|
 | `router.py` | パス、HTTP ステータス、`Depends`、DTO への変換、ドメイン例外から `HTTPException` への変換 | ビジネスロジック、SQL、計算、具象クラス名 |
-| `service.py` | protocol と `_pure` の呼び出し順序、トランザクション境界、`datetime.now()` や `uuid4()` の生成、ドメイン例外の送出 | 計算式、`Session`、`boto3`、プロンプト文言、HTTP の語彙 |
+| `service.py` | protocol と `_pure` の呼び出し順序、トランザクション境界、`datetime.now(UTC)` や `uuid4()` の生成、`get_today` で受け取った業務日付の利用、ドメイン例外の送出 | 計算式、`Session`、`pywebpush`、プロンプト文言、HTTP の語彙 |
 | `_pure.py` | 引数のみから結果を算出する純粋関数 | 引数以外の外部リソースや環境から取得する値（現在時刻や乱数など） |
 | `protocol.py` | この機能が外部に要求するインターフェース | 具象実装 |
 | `repository.py` | `Session` を受け取るクラス、DB 操作、entity から `types.py` への変換 | `protocol.py` の import、ビジネスロジック、他機能の entity の参照 |
-| `gateway.py` | この機能だけで使う外部連携の具象実装、外部ライブラリ例外からドメイン例外への変換 | 複数機能で共有する処理（`common/gateway/` へ配置する） |
+| `gateway.py` | この機能だけで使う外部連携の具象実装、外部ライブラリ例外からドメイン例外への変換 | 複数機能で共有する処理。`common/gateway/` へ配置する |
 | `types.py` | ドメインモデルの型定義 | SQLAlchemy の `Mapped`（テーブル定義は `common/db/entities/` に置く） |
 | `dto.py` | リクエストとレスポンスの Pydantic モデル | ドメインモデルの型定義 |
 | `prompts.py` | プロンプトのテンプレート文字列のみ | `if` などの分岐ロジック（文字列の組み立ては `_pure.py` で行う） |
@@ -65,7 +67,11 @@ frontend/src/                React 19 + TypeScript + Vite + Tailwind CSS v4
    外部依存の import が混入すると純粋関数ではなくなってしまうため、import 文を確認するだけでルールの違反を検知できる状態を保つ。
 
 2. **`service.py` は具象実装ファイルを import せず、`protocol.py` のインターフェースだけを参照する。**
-   `repository` や `storage_s3`、`llm_claude` などの具象クラスが service に現れた場合、依存の方向が逆転していることを意味する。
+   `repository` や `gateway`、`job_queue_celery` などの具象クラスが service に現れた場合、依存の方向が逆転していることを意味する。
+
+   他の機能の `types.py` と `protocol.py` は型注釈のために import してよい。呼び出しは service を経由する。
+
+   業務日付は `get_today` で受け取る。タイムスタンプは service で `datetime.now(UTC)` を生成する。業務日付は `APP_TIMEZONE` の日付で決まり、UTC のタイムスタンプとは日付が異なる時間帯があるため、両者を分けて扱う。
 
 3. **他の機能の `protocol.py` を直接呼ばず、対象機能の `service.py` の関数を経由する。**
    機能 A が機能 B のデータアクセス構造に依存すると、B の変更が A にまで波及してしまう。他機能からの呼び出し窓口は対象機能の `service.py` に一本化する。
@@ -81,7 +87,7 @@ frontend/src/                React 19 + TypeScript + Vite + Tailwind CSS v4
 `common/` 配下から各機能ディレクトリを import してはならない。import した時点で共通モジュールとしての責務から逸脱することになる。
 
 - `db/entities/`: 全テーブルの定義を1箇所に集約する。集約する理由と詳細な記述方法は [database.md](./database.md) を参照。
-- `gateway/protocol.py`: 複数機能で共有する外部連携インターフェースを定義する。`Storage.put` にバケット名を含めないのは、どのバケットを使用するかは具象実装側の関心事であるためである。また、`JobQueue.enqueue` がプリミティブ型しか受け付けないのは、ORM オブジェクトを渡すとプロセス間でのシリアライズ失敗やセッション切断が発生するためである。
+- `gateway/protocol.py`: 複数機能で共有する外部連携インターフェースを定義する。`JobQueue.enqueue` がプリミティブ型しか受け付けないのは、ORM オブジェクトを渡すとプロセス間でのシリアライズ失敗やセッション切断が発生するためである。
 - `config.py`: 環境変数を取得・保持するモジュール。ファイルパスの組み立てやキーの命名規則といったロジックは、各機能の `_pure.py` に記述する。
 
 ## dependencies.py
@@ -117,9 +123,9 @@ Celery ワーカーからも `dependencies.py` の関数を呼び出す。FastAP
 
 ```bash
 # 具象クラスへの依存が dependencies.py だけに閉じているかを確認する
-grep -rn "S3Storage\|ClaudeLLM\|CeleryJobQueue\|Db[A-Za-z]*Repository\|ReportLabPdfRenderer" \
+grep -rn "CeleryJobQueue\|Db[A-Za-z]*Repository\|WebPushSender" \
   --include="*.py" backend/ \
-  | grep -v "gateway/storage_s3.py\|gateway/llm_claude.py\|gateway/job_queue_celery.py\|/repository.py\|/gateway.py\|backend/tests/"
+  | grep -v "gateway/job_queue_celery.py\|/repository.py\|/gateway.py\|backend/tests/"
 # backend/dependencies.py の行だけが出力されれば正常
 
 mise run lint   # 実装が Protocol を満たしているかは mypy が検証する

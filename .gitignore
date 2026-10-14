@@ -215,3 +215,6 @@ __marimo__/
 /.claude/*
 !/.claude/settings.json
 !/.claude/rules/
+
+# 手元だけで使うファイルの置き場
+/data/raw/

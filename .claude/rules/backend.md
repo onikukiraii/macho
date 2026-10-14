@@ -23,11 +23,11 @@ mypy は strict 相当の設定で動作している。型チェックを通す�
 - Pydantic は v2 の API を利用する。`model_dump()` や `model_validate()` を使用し、非推奨の `dict()` や `**` によるアンパック展開は使わない。
 - 型チェックを無理やり通すための `Any`、`cast`、`# type: ignore` は使用しない。型が合わない場合は、型定義または実装そのものを修正する。
 
-構造が固定されたデータを、汎用的な `dict` や要素位置に依存する `tuple` のまま関数・モジュール間で受け渡してはならない。ドメインモデルには `types.py` で定義した `dataclass(frozen=True)` を、API のリクエスト／レスポンスや LLM の構造化出力には Pydantic モデルを使用する。
+構造が固定されたデータを、汎用的な `dict` や要素位置に依存する `tuple` のまま関数・モジュール間で受け渡してはならない。ドメインモデルには `types.py` で定義した `dataclass(frozen=True)` を、API のリクエスト／レスポンスや外部 API の構造化された応答には Pydantic モデルを使用する。
 
 ## 命名
 
-- grep（全文検索）による検索のしやすさを基準に決定する。単なる `close` ではなく `close_review` のように、多少冗長であっても呼び出し箇所を確実に検索・特定できる名前を選ぶ。
+- grep（全文検索）による検索のしやすさを基準に決定する。単なる `start` ではなく `start_rest_timer` のように、多少冗長であっても呼び出し箇所を確実に検索・特定できる名前を選ぶ。
 - 意味が広すぎる `data`、`info`、`check`、`cnt` などの単語や、`*_data` という接尾辞は避ける。何をどのように処理するのかを「動詞＋目的語」で具体的に表現する。
 - Protocol のメソッド名にはビジネスドメインの語彙を用いる。`select_with_where()` のような SQL やストレージ由来の語彙をインターフェースに漏らさず、`list_published()` のように業務上の意味で命名する。
 - entity クラスは `XxxRow`、ドメインモデルの型は `Xxx` とする。
@@ -46,11 +46,11 @@ mypy は strict 相当の設定で動作している。型チェックを通す�
 ## router
 
 ```python
-router = APIRouter(prefix="/reviews", tags=["reviews"])
+router = APIRouter(prefix="/exercises", tags=["exercises"])
 
 
 @router.get("/{uid}")
-def get_review(uid: str, repo: Annotated[ReviewRepository, Depends(get_review_repository)]) -> ReviewResponse:
+def get_exercise(uid: str, repo: Annotated[ExerciseRepository, Depends(get_exercise_repository)]) -> ExerciseDetailResponse:
 ```
 
 - 引数の型注釈には `protocol.py` で定義したインターフェースを指定し、`Depends` には `dependencies.py` のプロバイダ関数を渡す。
@@ -63,7 +63,7 @@ def get_review(uid: str, repo: Annotated[ReviewRepository, Depends(get_review_re
 
 - DTO の命名規則は、リクエスト用を `XxxCreateParams`（または `XxxUpdateParams` など）、レスポンス用を `XxxResponse` とする。
 - リクエスト入力のフォーマットや値の範囲チェックは Pydantic の `Field` などで行う。同一のバリデーションを `_pure.py` で重複して記述しない。
-- API レスポンスには内部の連番 `id` を含めず、UUID である `uid` を返却する。`id` は内部的な自動採番キーであり、外部から意味を特定しにくいためである。なお、`user` と `invoice` が `id` を返却しているのは後方互換性のためであり、新規に実装する機能では `review` の設計に倣うこと。
+- API レスポンスには内部の連番 `id` を含めず、UUID である `uid` を返却する。`id` は内部的な自動採番キーであり、外部から意味を特定しにくいためである。新規に実装する機能では `exercise` の設計に倣うこと。
 
 ## エラー
 
@@ -75,8 +75,7 @@ def get_review(uid: str, repo: Annotated[ReviewRepository, Depends(get_review_re
 | `Forbidden` | 403 |
 | `BusinessRuleViolation` | 400 |
 | `Conflict` | 409 |
-| `LLMError(retryable=True)` | 503 |
-| `LLMError(retryable=False)` | 502 |
+| `JobQueueUnavailable` | 503 |
 
 - `service.py` で `HTTPException` を送出してはならない。Celery ワーカーなど非 HTTP 環境から再利用できなくなるためである。
 - 外部ライブラリ固有の例外は具象実装内でキャッチし、ドメイン例外に変換して再送出する。`ClientError` や `IntegrityError` などの例外が上位層に漏れ出すと、上位層が外部ライブラリに依存してしまう。

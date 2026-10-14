@@ -10,6 +10,7 @@
 **/.classpath
 **/.dockerignore
 **/.env
+**/.env.*
 **/.git
 **/.gitignore
 **/.project
@@ -32,3 +33,9 @@
 **/values.dev.yaml
 LICENSE
 README.md
+
+# 個人の記録とダンプはイメージに含めると配布物に残るため、ビルドの文脈から外す
+data/
+**/*.sql
+**/*.csv
+**/*.xlsx

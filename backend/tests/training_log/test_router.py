@@ -1,3 +1,4 @@
+import json
 from collections.abc import Callable, Generator, Sequence
 from datetime import date
 from typing import Any
@@ -79,9 +80,46 @@ class TestUpdatePerformedExercise:
         today_client.patch(f"/api/training-logs/exercises/{performed_uid}", json={"memo": "肩に違和感"})
 
         resp = today_client.patch(f"/api/training-logs/exercises/{performed_uid}", json={"exercise_uid": squat_uid})
+        reopened = today_client.get(f"/api/training-logs/{log['uid']}").json()["exercises"][0]
 
-        exercise = resp.json()["exercises"][0]
-        assert (resp.status_code, exercise["exercise_name"], exercise["memo"]) == (200, "スクワット", "肩に違和感")
+        assert resp.status_code == 200
+        assert (reopened["exercise_name"], reopened["memo"]) == ("スクワット", "肩に違和感")
+
+    def test_メモの保存で種目は変わらない(self, today_client: TestClient) -> None:
+        log, _ = _create_log_with_bench(today_client)
+        performed_uid = log["exercises"][0]["uid"]
+
+        resp = today_client.patch(f"/api/training-logs/exercises/{performed_uid}", json={"memo": "肩に違和感"})
+
+        assert resp.status_code == 200
+        assert today_client.get(f"/api/training-logs/{log['uid']}").json()["exercises"][0]["exercise_name"] == (
+            "ベンチプレス"
+        )
+
+    def test_空のメモを保存するとメモが空になる(self, today_client: TestClient) -> None:
+        log, _ = _create_log_with_bench(today_client)
+        performed_uid = log["exercises"][0]["uid"]
+        today_client.patch(f"/api/training-logs/exercises/{performed_uid}", json={"memo": "肩に違和感"})
+
+        resp = today_client.patch(f"/api/training-logs/exercises/{performed_uid}", json={"memo": ""})
+
+        assert (resp.status_code, resp.json()["exercises"][0]["memo"]) == (200, "")
+
+    def test_存在しない種目のメモは保存できず_404_を返す(self, today_client: TestClient) -> None:
+        resp = today_client.patch("/api/training-logs/exercises/missing", json={"memo": "肩に違和感"})
+
+        assert (resp.status_code, resp.json()["detail"]) == (404, "種目が見つかりません")
+
+    def test_存在しない種目への差し替えは_404_で種目もメモも変わらない(self, today_client: TestClient) -> None:
+        log, _ = _create_log_with_bench(today_client)
+        performed_uid = log["exercises"][0]["uid"]
+        today_client.patch(f"/api/training-logs/exercises/{performed_uid}", json={"memo": "肩に違和感"})
+
+        resp = today_client.patch(f"/api/training-logs/exercises/{performed_uid}", json={"exercise_uid": "missing"})
+        reopened = today_client.get(f"/api/training-logs/{log['uid']}").json()["exercises"][0]
+
+        assert resp.status_code == 404
+        assert (reopened["exercise_name"], reopened["memo"]) == ("ベンチプレス", "肩に違和感")
 
     @pytest.mark.parametrize(
         "body",
@@ -90,17 +128,22 @@ class TestUpdatePerformedExercise:
             pytest.param({}, id="どちらも無い"),
             pytest.param({"exercise_uid": None}, id="種目が_null"),
             pytest.param({"memo": None}, id="メモが_null"),
-            pytest.param({"exercise_uid": "x", "memo": None}, id="種目と_null_のメモ"),
+            pytest.param(None, id="本文が_null"),
+            pytest.param({"exercise_uid": ""}, id="種目が空文字"),
         ],
     )
     def test_種目とメモのどちらか1つだけを送らない更新は_422_で受け付けない(
-        self, today_client: TestClient, body: dict[str, Any]
+        self, today_client: TestClient, body: dict[str, Any] | None
     ) -> None:
         log, _ = _create_log_with_bench(today_client)
 
-        resp = today_client.patch(f"/api/training-logs/exercises/{log['exercises'][0]['uid']}", json=body)
+        resp = today_client.patch(
+            f"/api/training-logs/exercises/{log['exercises'][0]['uid']}",
+            content=json.dumps(body),
+            headers={"Content-Type": "application/json"},
+        )
 
-        assert (resp.status_code, [error["type"] for error in resp.json()["detail"]]) == (422, ["value_error"])
+        assert resp.status_code == 422
 
 
 class TestUpdateSets:

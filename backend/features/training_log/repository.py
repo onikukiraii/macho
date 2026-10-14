@@ -123,22 +123,19 @@ class DbTrainingLogRepository:
         return self.get(uid)
 
     def replace_performed_exercise(self, performed_uid: str, *, exercise_id: int) -> TrainingLog:
-        row = self._get_performed_row(performed_uid)
+        row = self._get_performed_row(performed_uid, for_update=True)
         row.exercise_id = exercise_id
         self._session.commit()
         return self.get_by_performed_uid(performed_uid)
 
     def update_performed_exercise_memo(self, performed_uid: str, *, memo: str) -> TrainingLog:
-        row = self._get_performed_row(performed_uid)
+        row = self._get_performed_row(performed_uid, for_update=True)
         row.memo = memo
         self._session.commit()
         return self.get_by_performed_uid(performed_uid)
 
     def replace_sets(self, performed_uid: str, *, sets: Sequence[ExerciseSet]) -> TrainingLog:
-        statement = select(PerformedExerciseRow).where(PerformedExerciseRow.uid == performed_uid).with_for_update()
-        row = self._session.execute(statement).scalar_one_or_none()
-        if row is None:
-            raise NotFound(f"実施種目が見つかりません: uid={performed_uid}")
+        row = self._get_performed_row(performed_uid, for_update=True)
         # 前のセットの DELETE を先に flush する。同じ番号の INSERT が先に実行されると一意制約に違反する
         row.sets = []
         self._session.flush()
@@ -169,8 +166,10 @@ class DbTrainingLogRepository:
             raise NotFound(f"トレーニング記録が見つかりません: uid={uid}")
         return row
 
-    def _get_performed_row(self, performed_uid: str) -> PerformedExerciseRow:
+    def _get_performed_row(self, performed_uid: str, *, for_update: bool = False) -> PerformedExerciseRow:
         statement = select(PerformedExerciseRow).where(PerformedExerciseRow.uid == performed_uid)
+        if for_update:
+            statement = statement.with_for_update()
         row = self._session.execute(statement).scalar_one_or_none()
         if row is None:
             raise NotFound(f"実施種目が見つかりません: uid={performed_uid}")

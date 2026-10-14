@@ -407,6 +407,16 @@ export interface components {
             /** Exercise Uid */
             exercise_uid: string;
         };
+        /** PerformedExerciseMemoUpdateParams */
+        PerformedExerciseMemoUpdateParams: {
+            /** Memo */
+            memo: string;
+        };
+        /** PerformedExerciseReplaceParams */
+        PerformedExerciseReplaceParams: {
+            /** Exercise Uid */
+            exercise_uid: string;
+        };
         /** PerformedExerciseResponse */
         PerformedExerciseResponse: {
             /** Uid */
@@ -425,13 +435,6 @@ export interface components {
             memo: string;
             /** Sets */
             sets: components["schemas"]["SetResponse"][];
-        };
-        /** PerformedExerciseUpdateParams */
-        PerformedExerciseUpdateParams: {
-            /** Exercise Uid */
-            exercise_uid?: string | null;
-            /** Memo */
-            memo?: string | null;
         };
         /** PlannedResponse */
         PlannedResponse: {
@@ -1078,7 +1081,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["PerformedExerciseUpdateParams"];
+                "application/json": components["schemas"]["PerformedExerciseReplaceParams"] | components["schemas"]["PerformedExerciseMemoUpdateParams"];
             };
         };
         responses: {

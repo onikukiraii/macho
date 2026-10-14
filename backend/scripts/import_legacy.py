@@ -28,7 +28,7 @@ from features.program import service as program_service
 from features.program.protocol import ProgramRepository
 from features.program.types import NewPlannedExercise, NewProgram, NewProgramDay, NewProgramWeek, Weekday
 from features.training_log import service as training_log_service
-from features.training_log.dto import PerformedExerciseUpdateParams, SetsReplaceParams
+from features.training_log.dto import PerformedExerciseMemoUpdateParams, SetsReplaceParams
 from features.training_log.protocol import TrainingLogRepository
 from features.training_log.types import ExerciseSet
 
@@ -322,7 +322,7 @@ def validate_training_logs(training_logs: Sequence[LegacyTrainingLog], *, today:
                 ),
             )
             _validate_api_params(
-                PerformedExerciseUpdateParams,
+                PerformedExerciseMemoUpdateParams,
                 {"memo": exercise.memo},
                 reason=(
                     f"KINNIK の CSV のメモが受け付けられる範囲を外れています: {training_log.date} の {exercise.name}"

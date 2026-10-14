@@ -14,8 +14,9 @@ from features.training_log.dto import (
     DayOptionsResponse,
     ExerciseHistoryEntryResponse,
     PerformedExerciseCreateParams,
+    PerformedExerciseMemoUpdateParams,
+    PerformedExerciseReplaceParams,
     PerformedExerciseResponse,
-    PerformedExerciseUpdateParams,
     PlannedResponse,
     PreviousResultResponse,
     ProgramDayProgressResponse,
@@ -163,28 +164,29 @@ def create_training_log(
 @router.patch("/exercises/{performed_uid}")
 def update_performed_exercise(
     performed_uid: str,
-    params: PerformedExerciseUpdateParams,
+    params: PerformedExerciseReplaceParams | PerformedExerciseMemoUpdateParams,
     repo: TrainingLogRepositoryDep,
     exercise_repo: ExerciseRepositoryDep,
     program_repo: ProgramRepositoryDep,
 ) -> TrainingLogDetailResponse:
     try:
-        if params.exercise_uid is not None:
-            detail = service.replace_performed_exercise(
-                repo,
-                exercise_repo=exercise_repo,
-                program_repo=program_repo,
-                performed_uid=performed_uid,
-                exercise_uid=params.exercise_uid,
-            )
-        elif params.memo is not None:
-            detail = service.update_performed_exercise_memo(
-                repo,
-                exercise_repo=exercise_repo,
-                program_repo=program_repo,
-                performed_uid=performed_uid,
-                memo=params.memo,
-            )
+        match params:
+            case PerformedExerciseReplaceParams():
+                detail = service.replace_performed_exercise(
+                    repo,
+                    exercise_repo=exercise_repo,
+                    program_repo=program_repo,
+                    performed_uid=performed_uid,
+                    exercise_uid=params.exercise_uid,
+                )
+            case PerformedExerciseMemoUpdateParams():
+                detail = service.update_performed_exercise_memo(
+                    repo,
+                    exercise_repo=exercise_repo,
+                    program_repo=program_repo,
+                    performed_uid=performed_uid,
+                    memo=params.memo,
+                )
     except NotFound as e:
         raise HTTPException(404, "種目が見つかりません") from e
     return _to_detail_response(detail)

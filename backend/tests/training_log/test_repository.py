@@ -78,6 +78,40 @@ class TestReplaceSets:
         assert repo.get("log").exercises[0].sets == ()
 
 
+class TestUpdatePerformedExercise:
+    def test_差し替えは種目だけを更新しメモは変わらない(self, db_session: Session) -> None:
+        repo = DbTrainingLogRepository(db_session)
+        _create_log(db_session)
+        repo.update_performed_exercise_memo("performed", memo="肩に違和感")
+        squat = DbExerciseRepository(db_session).create(
+            uid="squat",
+            fields=ExerciseFields(
+                name="スクワット",
+                parent_id=None,
+                coefficient=None,
+                e1rm_divisor=40.0,
+                increment_kg=5.0,
+                default_rest_seconds=180,
+            ),
+        )
+
+        repo.replace_performed_exercise("performed", exercise_id=squat.id)
+        db_session.expire_all()
+
+        exercise = repo.get("log").exercises[0]
+        assert (exercise.exercise_id, exercise.memo) == (squat.id, "肩に違和感")
+
+    def test_メモの保存はメモだけを更新し種目は変わらない(self, db_session: Session) -> None:
+        repo = DbTrainingLogRepository(db_session)
+        before = _create_log(db_session).exercises[0]
+
+        repo.update_performed_exercise_memo("performed", memo="肩に違和感")
+        db_session.expire_all()
+
+        exercise = repo.get("log").exercises[0]
+        assert (exercise.exercise_id, exercise.memo) == (before.exercise_id, "肩に違和感")
+
+
 class TestDelete:
     def test_削除すると種目とセットも消えカレンダーに出ず別の記録は残る(self, db_session: Session) -> None:
         repo = DbTrainingLogRepository(db_session)

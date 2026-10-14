@@ -10,7 +10,7 @@ const TABS = [
 
 export function TabLayout() {
   return (
-    <div className="flex min-h-dvh flex-col">
+    <div className="flex min-h-dvh flex-col pt-[env(safe-area-inset-top)]">
       <main className="flex-1 pb-[calc(5rem+env(safe-area-inset-bottom))]">
         <Outlet />
       </main>

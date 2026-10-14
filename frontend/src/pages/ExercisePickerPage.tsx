@@ -60,7 +60,7 @@ function ExercisePicker({ trainingLogUid }: { trainingLogUid: string }): ReactEl
   })}`
 
   return (
-    <div className="flex flex-col gap-4 p-4">
+    <div className="flex flex-col gap-4 px-4 pt-[calc(1rem+env(safe-area-inset-top))] pb-4">
       <BackLink to={`/training-logs/${trainingLogUid}`}>記録</BackLink>
       <h1 className="text-std-24B-150">{replacingUid === null ? '種目を追加' : '種目を差し替え'}</h1>
       <InputField label="種目を検索">

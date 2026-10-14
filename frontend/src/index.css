@@ -49,7 +49,7 @@
 
 :root {
     --radius: 0.5rem;
-    --background: var(--color-white);
+    --background: var(--color-solid-gray-50);
     --foreground: var(--color-solid-gray-800);
     --card: var(--color-white);
     --card-foreground: var(--color-solid-gray-800);

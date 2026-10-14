@@ -73,26 +73,21 @@ docker compose -f compose.prod.yaml up -d --build
 
 マイグレーションは db が healthy になってから実行される。
 
-`down -v` を実行してよいのは、手順 3 の KINNIK の記録の移行が完了する前に限る。初回のマイグレーションが失敗したときも、この条件に含まれる。ボリュームを消して手順 2 からやり直せる。移行の完了後は記録がある DB なので実行しない。記録が消える。
+`down -v` を実行してよいのは、手順 3 の初期データの投入が完了する前に限る。初回のマイグレーションが失敗したときも、この条件に含まれる。ボリュームを消して手順 2 からやり直せる。投入の完了後は記録がある DB なので実行しない。記録が消える。
 
 ```bash
 docker compose -f compose.prod.yaml down -v
 ```
 
-### 3. KINNIK の記録の移行
+### 3. 初期データの投入
 
-初回だけ、`data/` の CSV と xlsx を取り込む。`data/` はイメージに含めず、このコマンドの間だけコンテナへマウントする。種目か記録が1件でもある DB では、スクリプトが中断する。
-
-移行は、その週の Day をすべて終えた金曜の Day4 のあとから日曜までに、その時点で書き出した KINNIK の CSV で流す。取り込んだ記録のうち最も新しい週は評価済みとして記録される。週の途中で流すと、その週の残りをアプリで記録しても、トレーニングマックスの週ごとの自動更新に使われない。
+初回だけ、`data/` の seed から種目、プログラム、過去のトレーニング記録を投入する。seed の形式は `data/README.md` にある。`data/` はイメージに含めず、このコマンドの間だけコンテナへマウントする。種目か記録が1件でもある DB では、スクリプトが中断する。
 
 ```bash
-docker compose -f compose.prod.yaml run --rm -v ./data:/data:ro api uv run python -m scripts.import_legacy \
-  --training-csv /data/kinnik/kinnik_CSV_training_2024-02-01_2026-10-14_20261014004624.csv \
-  --program-xlsx /data/BIG3プログラム管理.xlsx \
-  --maintenance-prompt /data/BIG3プログラム管理_保守プロンプト.md
+docker compose -f compose.prod.yaml run --rm -v ./data:/data:ro api uv run python -m scripts.import_legacy --seed-dir /data
 ```
 
-KINNIK の CSV のファイル名には、書き出した期間と時刻が入る。書き出し直したときは `ls data/kinnik/` で `kinnik_CSV_training_` で始まるファイルの名前を確かめて置き換える。3つの引数はどれも必須で、説明は `uv run python -m scripts.import_legacy --help` で確認する。
+**投入は週の Day をすべて終えたあとに行う。** `training_logs.csv` の最後の日付を含む週は評価済みとして記録される。週の途中までの記録で投入すると、その週の残りをアプリで記録しても、トレーニングマックスの週ごとの自動更新に使われない。週の途中で投入したときは、翌週の最初の記録の前に、その週の実績を見てトレーニングマックスを手で更新する。
 
 ### 4. 2回目以降のデプロイ
 

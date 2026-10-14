@@ -80,7 +80,7 @@ export function PerformedExerciseCard({
   }
 
   const nextSetIndex = columns.findIndex((column) => column.weight === '' || column.reps === '')
-  const weightPlaceholder = performedExercise.target_weight === null ? undefined : String(performedExercise.target_weight)
+  const weightPlaceholder = (performedExercise.target_weight ?? performedExercise.previous?.top_set.weight)?.toString()
   const repsPlaceholder = performedExercise.planned === null ? undefined : String(performedExercise.planned.reps)
   const columnLimitReached = columns.length >= MAX_COLUMN_COUNT
   const replaceExerciseHref = `/training-logs/${trainingLogUid}/exercise-picker?replace=${performedExercise.uid}`

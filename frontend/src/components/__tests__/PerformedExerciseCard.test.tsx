@@ -99,6 +99,19 @@ describe('PerformedExerciseCard', () => {
     expect(dips.getAllByRole('spinbutton', { name: /の重量$/ })).toHaveLength(5)
   })
 
+  it('目標重量の無い種目は前回のトップセットの重量を重量のプレースホルダに出す', () => {
+    const topSet = { order: 2, weight: 60, reps: 10, rir: null }
+    renderCard(
+      buildPerformedExercise({
+        exercise_name: 'ラットプルダウン',
+        planned: { sets: 2, reps: 10, reps_max: null, target_rpe: null, target_percent: null },
+        previous: { date: '2026-10-06', top_set: topSet, sets: [topSet] },
+      }),
+    )
+
+    expect(screen.getByRole('spinbutton', { name: 'セット1の重量' })).toHaveAttribute('placeholder', '60')
+  })
+
   it('セットの保存が失敗すると入力を残して未保存を表示し、列の変更か未保存の押下で全セットを送り直す', async () => {
     vi.mocked(trainingLogsApi.replaceSets).mockRejectedValue(new Error('サーバーとの通信に失敗しました'))
     renderCard(buildPerformedExercise({}))

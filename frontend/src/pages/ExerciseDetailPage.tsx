@@ -2,7 +2,7 @@ import { useState, type ReactElement } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { exercisesApi, trainingLogsApi } from '@/api/fetcher'
 import { EXERCISE_KIND_LABEL, type ExerciseDetail } from '@/api/constants'
-import { Button } from '@/components/dads/Button'
+import { Button } from '@/components/Button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { TrainingMaxChangeSheet } from '@/components/TrainingMaxChangeSheet'
 import { useLoadable, type Loadable } from '@/hooks/useLoadable'
@@ -30,7 +30,7 @@ function TrainingMaxSection({ detail, onChanged }: TrainingMaxSectionProps): Rea
     <section className="flex flex-col gap-3">
       <div className="flex items-center justify-between gap-4">
         <h2 className="text-std-20B-150">トレーニングマックス</h2>
-        <Button size="sm" variant="outline" className="dark:bg-transparent dark:text-key-300" onClick={() => setChanging(true)}>
+        <Button size="sm" variant="outline" onClick={() => setChanging(true)}>
           変更
         </Button>
       </div>
@@ -104,7 +104,7 @@ function ExerciseDetailView({ uid }: { uid: string }): ReactElement {
             </>
           ) : null}
         </div>
-        <Button asChild size="sm" variant="outline" className="dark:bg-transparent dark:text-key-300">
+        <Button asChild size="sm" variant="outline">
           <Link to={`/exercises/${uid}/edit`}>編集</Link>
         </Button>
       </header>

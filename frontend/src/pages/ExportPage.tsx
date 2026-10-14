@@ -1,7 +1,7 @@
 import { useState, type ReactElement } from 'react'
 import { toast } from 'sonner'
 import { trainingLogsApi } from '@/api/fetcher'
-import { Button } from '@/components/dads/Button'
+import { Button } from '@/components/Button'
 import { ErrorText } from '@/components/dads/ErrorText'
 import { Input } from '@/components/dads/Input'
 import { InputField } from '@/components/InputField'

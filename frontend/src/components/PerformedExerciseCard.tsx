@@ -2,7 +2,7 @@ import { Fragment, useId, useRef, useState, type MouseEvent, type ReactElement }
 import { Link } from 'react-router-dom'
 import { format, parseISO } from 'date-fns'
 import type { components } from '@/api/schema'
-import { Button } from '@/components/dads/Button'
+import { Button } from '@/components/Button'
 import { ErrorText } from '@/components/dads/ErrorText'
 import { PerformedExerciseMemoField } from '@/components/PerformedExerciseMemoField'
 import { RirSheet } from '@/components/RirSheet'
@@ -190,7 +190,6 @@ export function PerformedExerciseCard({
         <Button
           size="md"
           variant="outline"
-          className="dark:bg-transparent dark:text-key-300"
           aria-disabled={columnLimitReached}
           aria-describedby={columnLimitReached ? addColumnReasonId : undefined}
           onClick={() => !columnLimitReached && editColumns(appendColumn(columns))}

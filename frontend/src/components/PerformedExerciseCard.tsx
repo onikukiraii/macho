@@ -84,12 +84,19 @@ export function PerformedExerciseCard({
   const repsPlaceholder = performedExercise.planned === null ? undefined : String(performedExercise.planned.reps)
   const columnLimitReached = columns.length >= MAX_COLUMN_COUNT
   const replaceExerciseHref = `/training-logs/${trainingLogUid}/exercise-picker?replace=${performedExercise.uid}`
+  const exerciseDetailHref = `/exercises/${performedExercise.exercise_uid}`
 
   return (
     <section aria-labelledby={headingId} className="flex flex-col gap-3 rounded-8 bg-card p-3">
       <div className="flex items-start justify-between gap-4">
         <h2 id={headingId} className="text-std-18B-160">
-          {performedExercise.exercise_name}
+          <Link
+            to={exerciseDetailHref}
+            onClick={(event) => onNavigate(event, exerciseDetailHref)}
+            className="underline underline-offset-4"
+          >
+            {performedExercise.exercise_name}
+          </Link>
         </h2>
         <div className="flex shrink-0 items-center gap-2">
           {saveFailed && (

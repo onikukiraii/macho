@@ -99,6 +99,23 @@ describe('PerformedExerciseCard', () => {
     expect(dips.getAllByRole('spinbutton', { name: /の重量$/ })).toHaveLength(5)
   })
 
+  it('種目名を押すとその種目の詳細画面への遷移を記録の画面へ渡す', () => {
+    const onNavigate = vi.fn()
+    render(
+      <PerformedExerciseCard
+        trainingLogUid="log-1"
+        performedExercise={buildPerformedExercise({ exercise_uid: 'exercise-1', exercise_name: 'ベンチプレス' })}
+        onStartRest={vi.fn()}
+        onUnsavedChange={vi.fn()}
+        onNavigate={onNavigate}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('link', { name: 'ベンチプレス' }))
+
+    expect(onNavigate).toHaveBeenCalledWith(expect.anything(), '/exercises/exercise-1')
+  })
+
   it('目標重量の無い種目は前回のトップセットの重量を重量のプレースホルダに出す', () => {
     const topSet = { order: 2, weight: 60, reps: 10, rir: null }
     renderCard(

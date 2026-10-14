@@ -16,6 +16,7 @@ from features.exercise._pure import (
 )
 from features.exercise.protocol import ExerciseRepository
 from features.exercise.types import (
+    BodyPart,
     CalculationBasis,
     Exercise,
     ExerciseDetail,
@@ -40,6 +41,7 @@ def create_exercise(
     repo: ExerciseRepository,
     *,
     name: str,
+    body_part: BodyPart,
     parent_uid: str | None,
     coefficient: float | None,
     e1rm_divisor: float | None,
@@ -57,6 +59,7 @@ def create_exercise(
     )
     fields = build_exercise_fields(
         name=name,
+        body_part=body_part,
         parent=parent,
         coefficient=coefficient,
         e1rm_divisor=e1rm_divisor,
@@ -72,6 +75,7 @@ def update_exercise(
     *,
     uid: str,
     name: str,
+    body_part: BodyPart,
     parent_uid: str | None,
     coefficient: float | None,
     e1rm_divisor: float | None,
@@ -92,6 +96,7 @@ def update_exercise(
     )
     fields = build_exercise_fields(
         name=name,
+        body_part=body_part,
         parent=parent,
         coefficient=coefficient,
         e1rm_divisor=e1rm_divisor,

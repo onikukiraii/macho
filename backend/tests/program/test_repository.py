@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from common.errors import Conflict
 from features.exercise.repository import DbExerciseRepository
-from features.exercise.types import ExerciseFields
+from features.exercise.types import BodyPart, ExerciseFields
 from features.program.repository import DbProgramRepository
 from features.program.types import NewPlannedExercise, NewProgram, NewProgramDay, NewProgramWeek, Weekday
 
@@ -54,6 +54,7 @@ def _program(*, name: str, start_date: date, exercise_id: int) -> NewProgram:
 def _exercise_id(db_session: Session) -> int:
     fields = ExerciseFields(
         name="スクワット",
+        body_part=BodyPart.legs,
         parent_id=None,
         coefficient=None,
         e1rm_divisor=33.3,

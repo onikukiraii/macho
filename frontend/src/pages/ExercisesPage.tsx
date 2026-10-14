@@ -1,12 +1,12 @@
 import type { ReactElement } from 'react'
 import { Link } from 'react-router-dom'
 import { exercisesApi } from '@/api/fetcher'
-import { EXERCISE_KIND_LABEL, type Exercise, type ExerciseKind } from '@/api/constants'
+import { BODY_PART_LABEL, EXERCISE_KIND_LABEL, type Exercise } from '@/api/constants'
 import { Button } from '@/components/dads/Button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useLoadable } from '@/hooks/useLoadable'
+import { groupExercisesByBodyPart } from '@/lib/exercises'
 
-const KIND_ORDER: ExerciseKind[] = ['training_max', 'derived', 'double_progression']
 const LOAD_FAILURE_MESSAGE = '種目の一覧を取得できませんでした'
 
 function ExerciseRow({ exercise }: { exercise: Exercise }): ReactElement {
@@ -16,7 +16,10 @@ function ExerciseRow({ exercise }: { exercise: Exercise }): ReactElement {
         to={`/exercises/${exercise.uid}`}
         className="flex min-h-14 items-center justify-between gap-4 border-b border-border px-4 py-2"
       >
-        <span className="text-std-16B-170">{exercise.name}</span>
+        <span className="flex flex-col">
+          <span className="text-std-16B-170">{exercise.name}</span>
+          <span className="text-dns-14N-130 text-muted-foreground">{EXERCISE_KIND_LABEL[exercise.kind]}</span>
+        </span>
         <span className="text-dns-14N-130 text-muted-foreground">
           {exercise.kind === 'derived'
             ? `${exercise.parent_name} × ${exercise.coefficient}`
@@ -41,15 +44,13 @@ export function ExercisesPage(): ReactElement {
       {exercises.status === 'loading' && <Skeleton className="mx-4 h-40" />}
       {exercises.status === 'failed' && <p className="px-4 text-muted-foreground">{LOAD_FAILURE_MESSAGE}</p>}
       {exercises.status === 'loaded' &&
-        KIND_ORDER.map((kind) => (
-          <section key={kind} className="flex flex-col">
-            <h2 className="px-4 py-2 text-dns-14B-130 text-muted-foreground">{EXERCISE_KIND_LABEL[kind]}</h2>
+        groupExercisesByBodyPart(exercises.value).map((group) => (
+          <section key={group.bodyPart} className="flex flex-col">
+            <h2 className="px-4 py-2 text-dns-14B-130 text-muted-foreground">{BODY_PART_LABEL[group.bodyPart]}</h2>
             <ul>
-              {exercises.value
-                .filter((exercise) => exercise.kind === kind)
-                .map((exercise) => (
-                  <ExerciseRow key={exercise.uid} exercise={exercise} />
-                ))}
+              {group.exercises.map((exercise) => (
+                <ExerciseRow key={exercise.uid} exercise={exercise} />
+              ))}
             </ul>
           </section>
         ))}

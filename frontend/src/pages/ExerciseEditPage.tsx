@@ -1,7 +1,7 @@
 import { useState, type FormEvent, type ReactElement } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
-import type { Exercise } from '@/api/constants'
+import { BODY_PART_LABEL, BODY_PART_ORDER, type BodyPart, type Exercise } from '@/api/constants'
 import { exercisesApi } from '@/api/fetcher'
 import { Button } from '@/components/dads/Button'
 import { Input } from '@/components/dads/Input'
@@ -23,6 +23,7 @@ type ExerciseFormProps = {
 function ExerciseForm({ exercises, editing, initialName, returnTo }: ExerciseFormProps): ReactElement {
   const navigate = useNavigate()
   const [name, setName] = useState(editing?.name ?? initialName)
+  const [bodyPart, setBodyPart] = useState<BodyPart | ''>(editing?.body_part ?? '')
   const [parentUid, setParentUid] = useState(editing?.parent_uid ?? '')
   const [coefficient, setCoefficient] = useState(editing?.coefficient?.toString() ?? '1')
   const [e1rmDivisor, setE1rmDivisor] = useState(editing?.e1rm_divisor.toString() ?? '33.3')
@@ -35,10 +36,11 @@ function ExerciseForm({ exercises, editing, initialName, returnTo }: ExerciseFor
 
   async function saveExercise(event: FormEvent): Promise<void> {
     event.preventDefault()
-    if (saving) return
+    if (saving || bodyPart === '') return
     setSaving(true)
     const params = {
       name,
+      body_part: bodyPart,
       parent_uid: parent === undefined ? null : parent.uid,
       coefficient: parent === undefined ? null : Number(coefficient),
       e1rm_divisor: parent === undefined ? Number(e1rmDivisor) : null,
@@ -64,6 +66,22 @@ function ExerciseForm({ exercises, editing, initialName, returnTo }: ExerciseFor
     <form onSubmit={saveExercise} className="flex flex-col gap-4">
       <InputField label="名前">
         <Input required maxLength={64} value={name} onChange={(event) => setName(event.target.value)} />
+      </InputField>
+      <InputField label="部位">
+        <Select
+          required
+          value={bodyPart}
+          onChange={(event) => setBodyPart(BODY_PART_ORDER.find((part) => part === event.target.value) ?? '')}
+        >
+          <option value="" disabled>
+            選択してください
+          </option>
+          {BODY_PART_ORDER.map((part) => (
+            <option key={part} value={part}>
+              {BODY_PART_LABEL[part]}
+            </option>
+          ))}
+        </Select>
       </InputField>
       <InputField label="派生元の種目">
         <Select value={parentUid} onChange={(event) => setParentUid(event.target.value)}>

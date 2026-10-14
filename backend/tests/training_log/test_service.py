@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from common.errors import BusinessRuleViolation
 from features.exercise.repository import DbExerciseRepository
 from features.exercise.service import create_exercise, get_exercise, record_weekly_evaluation
-from features.exercise.types import ResolvedExercise, TrainingMax, TrainingMaxSource
+from features.exercise.types import BodyPart, ResolvedExercise, TrainingMax, TrainingMaxSource
 from features.program.repository import DbProgramRepository
 from features.program.service import create_program
 from features.program.types import NewPlannedExercise, NewProgram, NewProgramDay, NewProgramWeek, Program, Weekday
@@ -58,6 +58,7 @@ def _exercise(
     return create_exercise(
         exercise_repo,
         name=name,
+        body_part=BodyPart.chest,
         parent_uid=None if parent is None else parent.exercise.uid,
         coefficient=coefficient,
         e1rm_divisor=e1rm_divisor,

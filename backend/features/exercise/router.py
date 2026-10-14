@@ -42,6 +42,7 @@ def create_exercise(
         exercise = service.create_exercise(
             repo,
             name=params.name,
+            body_part=params.body_part,
             parent_uid=params.parent_uid,
             coefficient=params.coefficient,
             e1rm_divisor=params.e1rm_divisor,
@@ -68,6 +69,7 @@ def update_exercise(
             repo,
             uid=uid,
             name=params.name,
+            body_part=params.body_part,
             parent_uid=params.parent_uid,
             coefficient=params.coefficient,
             e1rm_divisor=params.e1rm_divisor,
@@ -102,6 +104,7 @@ def _to_response(resolved: ResolvedExercise) -> ExerciseResponse:
     return ExerciseResponse(
         uid=resolved.exercise.uid,
         name=resolved.exercise.name,
+        body_part=resolved.exercise.body_part,
         kind=resolved.kind,
         parent_uid=resolved.parent.uid if resolved.parent is not None else None,
         parent_name=resolved.parent.name if resolved.parent is not None else None,

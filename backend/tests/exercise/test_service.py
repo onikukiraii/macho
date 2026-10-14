@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from common.errors import BusinessRuleViolation, Conflict
 from features.exercise.repository import DbExerciseRepository
 from features.exercise.service import add_training_max, create_exercise, update_exercise
-from features.exercise.types import ResolvedExercise
+from features.exercise.types import BodyPart, ResolvedExercise
 
 
 def _create(
@@ -17,6 +17,7 @@ def _create(
     return create_exercise(
         repo,
         name=name,
+        body_part=BodyPart.chest,
         parent_uid=parent_uid,
         coefficient=coefficient,
         e1rm_divisor=None if parent_uid is not None else 40.0,
@@ -30,6 +31,7 @@ def _update(repo: DbExerciseRepository, uid: str, name: str, *, parent_uid: str 
         repo,
         uid=uid,
         name=name,
+        body_part=BodyPart.chest,
         parent_uid=parent_uid,
         coefficient=0.87 if parent_uid is not None else None,
         e1rm_divisor=None if parent_uid is not None else 40.0,

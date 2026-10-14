@@ -9,6 +9,15 @@ class ExerciseKind(StrEnum):
     double_progression = "double_progression"
 
 
+class BodyPart(StrEnum):
+    chest = "chest"
+    back = "back"
+    shoulders = "shoulders"
+    arms = "arms"
+    legs = "legs"
+    abs = "abs"
+
+
 class TrainingMaxSource(StrEnum):
     auto = "auto"
     manual = "manual"
@@ -19,6 +28,7 @@ class Exercise:
     id: int
     uid: str
     name: str
+    body_part: BodyPart
     parent_id: int | None
     coefficient: float | None
     e1rm_divisor: float | None
@@ -58,6 +68,7 @@ class TrainingMaxUpdate:
 @dataclass(frozen=True)
 class ExerciseFields:
     name: str
+    body_part: BodyPart
     parent_id: int | None
     coefficient: float | None
     e1rm_divisor: float | None

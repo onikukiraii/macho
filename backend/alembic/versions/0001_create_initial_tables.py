@@ -32,6 +32,7 @@ def upgrade() -> None:
             sa.String(length=64).with_variant(mysql.VARCHAR(64, collation="utf8mb4_0900_as_cs"), "mysql"),
             nullable=False,
         ),
+        sa.Column("body_part", sa.String(length=16), nullable=False),
         sa.Column("parent_id", sa.Integer(), nullable=True),
         sa.Column("coefficient", sa.Float(), nullable=True),
         sa.Column("e1rm_divisor", sa.Float(), nullable=True),

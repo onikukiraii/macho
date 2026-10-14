@@ -1,3 +1,4 @@
+import { BODY_PART_ORDER, type BodyPart, type Exercise } from '@/api/constants'
 import type { components } from '@/api/schema'
 
 type Schemas = components['schemas']
@@ -14,4 +15,12 @@ export function formatPlanned(planned: Schemas['PlannedResponse'], targetWeight:
     planned.target_percent === null ? '' : ` ${planned.target_percent}%`,
     targetWeight === null ? '' : ` / 目標 ${targetWeight} kg`,
   ].join('')
+}
+
+/** 部位の並び順で、種目が1つ以上ある部位だけを返す */
+export function groupExercisesByBodyPart(exercises: Exercise[]): { bodyPart: BodyPart; exercises: Exercise[] }[] {
+  return BODY_PART_ORDER.map((bodyPart) => ({
+    bodyPart,
+    exercises: exercises.filter((exercise) => exercise.body_part === bodyPart),
+  })).filter((group) => group.exercises.length > 0)
 }

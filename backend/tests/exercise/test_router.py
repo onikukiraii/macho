@@ -3,10 +3,11 @@ from typing import Any
 import pytest
 from fastapi.testclient import TestClient
 
-from features.exercise.types import ExerciseKind, TrainingMaxSource
+from features.exercise.types import BodyPart, ExerciseKind, TrainingMaxSource
 
 BENCH = {
     "name": "ベンチプレス",
+    "body_part": BodyPart.chest,
     "parent_uid": None,
     "coefficient": None,
     "e1rm_divisor": 40.0,
@@ -15,6 +16,7 @@ BENCH = {
 }
 SQUAT = {
     "name": "スクワット",
+    "body_part": BodyPart.legs,
     "parent_uid": None,
     "coefficient": None,
     "e1rm_divisor": 33.3,
@@ -32,6 +34,7 @@ class TestCreateExercise:
             "/api/exercises",
             json={
                 "name": "ポーズベンチ",
+                "body_part": BodyPart.chest,
                 "parent_uid": bench_uid,
                 "coefficient": 0.87,
                 "e1rm_divisor": None,
@@ -47,6 +50,7 @@ class TestCreateExercise:
         expected = {
             "uid": created["uid"],
             "name": "ポーズベンチ",
+            "body_part": BodyPart.chest,
             "kind": ExerciseKind.derived,
             "parent_uid": bench_uid,
             "parent_name": "ベンチプレス",
@@ -67,7 +71,7 @@ class TestCreateExercise:
     )
     def test_分母が無限大か_100_を超えると_422(self, client: TestClient, e1rm_divisor: str) -> None:
         body = (
-            '{"name": "スクワット", "parent_uid": null, "coefficient": null, '
+            '{"name": "スクワット", "body_part": "legs", "parent_uid": null, "coefficient": null, '
             f'"e1rm_divisor": {e1rm_divisor}, "increment_kg": 2.5, "default_rest_seconds": 180}}'
         )
 
@@ -111,6 +115,22 @@ class TestCreateExercise:
         resp = client.post("/api/exercises", json={**SQUAT, "name": "スクワット "})
 
         assert resp.status_code == 409
+
+    def test_部位が6つのどれでもなければ_422(self, client: TestClient) -> None:
+        resp = client.post("/api/exercises", json={**SQUAT, "body_part": "neck"})
+
+        assert resp.status_code == 422
+        assert [error["loc"][-1] for error in resp.json()["detail"]] == ["body_part"]
+
+
+class TestUpdateExercise:
+    def test_部位を変更すると詳細の部位が変わる(self, client: TestClient) -> None:
+        uid = client.post("/api/exercises", json=SQUAT).json()["uid"]
+
+        resp = client.put(f"/api/exercises/{uid}", json={**SQUAT, "body_part": BodyPart.back})
+
+        assert resp.status_code == 200
+        assert client.get(f"/api/exercises/{uid}").json()["exercise"]["body_part"] == BodyPart.back
 
 
 class TestGetExercise:

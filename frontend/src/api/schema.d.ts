@@ -304,6 +304,11 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /**
+         * BodyPart
+         * @enum {string}
+         */
+        BodyPart: "chest" | "back" | "shoulders" | "arms" | "legs" | "abs";
         /** DayOptionResponse */
         DayOptionResponse: {
             /** Program Day Uid */
@@ -366,6 +371,7 @@ export interface components {
             uid: string;
             /** Name */
             name: string;
+            body_part: components["schemas"]["BodyPart"];
             kind: components["schemas"]["ExerciseKind"];
             /** Parent Uid */
             parent_uid: string | null;
@@ -386,6 +392,7 @@ export interface components {
         ExerciseSaveParams: {
             /** Name */
             name: string;
+            body_part: components["schemas"]["BodyPart"];
             /** Parent Uid */
             parent_uid: string | null;
             /** Coefficient */

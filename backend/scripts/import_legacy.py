@@ -19,7 +19,7 @@ from dependencies import get_exercise_repository, get_program_repository, get_to
 from features.exercise import service as exercise_service
 from features.exercise.dto import ExerciseSaveParams, TrainingMaxCreateParams
 from features.exercise.protocol import ExerciseRepository
-from features.exercise.types import Exercise
+from features.exercise.types import BodyPart, Exercise
 from features.program import service as program_service
 from features.program.protocol import ProgramRepository
 from features.program.types import NewPlannedExercise, NewProgram, NewProgramDay, NewProgramWeek, Weekday
@@ -35,8 +35,17 @@ EXERCISE_MASTER_CSV = "exercise_master.csv"
 BULKING_PHASE_CSV = "bulking_phase.csv"
 CUTTING_PHASE_CSV = "cutting_phase.csv"
 TRAINING_MAXES_CSV = "training_maxes.csv"
+BODY_PARTS_CSV = "body_parts.csv"
 DESIGN_NOTE_MD = "design_note.md"
 TRAINING_MAX_REASON = "初期データの投入"
+BODY_PART_LABELS = {
+    "胸": BodyPart.chest,
+    "背中": BodyPart.back,
+    "肩": BodyPart.shoulders,
+    "腕": BodyPart.arms,
+    "脚": BodyPart.legs,
+    "腹": BodyPart.abs,
+}
 PROGRAM_NAME = "2026 増量期"
 PROGRAM_START_DATE = date(2026, 9, 28)
 EXERCISE_NAMES = {
@@ -326,12 +335,13 @@ def validate_training_logs(training_logs: Sequence[LegacyTrainingLog], *, today:
             )
 
 
-def validate_exercise_plans(plans: Iterable[ExerciseToCreate]) -> None:
+def validate_exercise_plans(plans: Iterable[ExerciseToCreate], *, body_parts: Mapping[str, BodyPart]) -> None:
     for plan in plans:
         _validate_api_params(
             ExerciseSaveParams,
             {
                 "name": plan.name,
+                "body_part": body_parts[plan.name],
                 "parent_uid": None,
                 "coefficient": plan.coefficient,
                 "e1rm_divisor": plan.e1rm_divisor,
@@ -340,6 +350,18 @@ def validate_exercise_plans(plans: Iterable[ExerciseToCreate]) -> None:
             },
             reason=f"種目の値が受け付けられる範囲を外れています: {plan.name}",
         )
+
+
+def resolve_body_parts(plans: Iterable[ExerciseToCreate], *, labels: Mapping[str, str]) -> dict[str, BodyPart]:
+    unknown_labels = {label for label in labels.values() if label not in BODY_PART_LABELS}
+    if len(unknown_labels) > 0:
+        raise InvalidLegacyFile(
+            f"body_parts.csv の部位は {'、'.join(BODY_PART_LABELS)} のどれかにしてください: {sorted(unknown_labels)}"
+        )
+    missing_names = [plan.name for plan in plans if plan.name not in labels]
+    if len(missing_names) > 0:
+        raise InvalidLegacyFile(f"body_parts.csv に部位の無い種目があります: {missing_names}")
+    return {name: BODY_PART_LABELS[label] for name, label in labels.items()}
 
 
 def validate_training_maxes(training_maxes: Iterable[SeedTrainingMax], *, master: Sequence[MasterExercise]) -> None:
@@ -381,11 +403,12 @@ def import_legacy_records(session: Session, *, seed_dir: Path, today: date) -> N
     validate_training_logs(training_logs, today=today)
     master = _read_master_exercises(seed_dir / EXERCISE_MASTER_CSV)
     exercise_plans = plan_exercises(master, training_logs, planned_names=[row.exercise_name for row in bulking_rows])
-    validate_exercise_plans(exercise_plans)
+    body_parts = resolve_body_parts(exercise_plans, labels=_read_body_parts(seed_dir / BODY_PARTS_CSV))
+    validate_exercise_plans(exercise_plans, body_parts=body_parts)
     training_maxes = _read_training_maxes(seed_dir / TRAINING_MAXES_CSV)
     validate_training_maxes(training_maxes, master=master)
 
-    exercises = _create_exercises(exercise_repo, exercise_plans)
+    exercises = _create_exercises(exercise_repo, exercise_plans, body_parts=body_parts)
     for training_max in training_maxes:
         exercise_service.add_training_max(
             exercise_repo,
@@ -529,6 +552,10 @@ def _read_master_exercises(path: Path) -> list[MasterExercise]:
     ]
 
 
+def _read_body_parts(path: Path) -> dict[str, str]:
+    return {row["種目"].strip(): row["部位"].strip() for row in _read_csv(path)}
+
+
 def _read_training_maxes(path: Path) -> list[SeedTrainingMax]:
     return [
         SeedTrainingMax(exercise_name=row["種目"].strip(), value=float(row["トレーニングマックス"]))
@@ -554,12 +581,15 @@ def _read_phase_rows(path: Path) -> list[PhaseRow]:
     ]
 
 
-def _create_exercises(repo: ExerciseRepository, plans: Sequence[ExerciseToCreate]) -> dict[str, Exercise]:
+def _create_exercises(
+    repo: ExerciseRepository, plans: Sequence[ExerciseToCreate], *, body_parts: Mapping[str, BodyPart]
+) -> dict[str, Exercise]:
     exercises: dict[str, Exercise] = {}
     for plan in plans:
         exercises[plan.name] = exercise_service.create_exercise(
             repo,
             name=plan.name,
+            body_part=body_parts[plan.name],
             parent_uid=None if plan.parent_name is None else exercises[plan.parent_name].uid,
             coefficient=plan.coefficient,
             e1rm_divisor=plan.e1rm_divisor,

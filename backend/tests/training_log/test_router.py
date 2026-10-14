@@ -9,6 +9,7 @@ from fastapi.testclient import TestClient
 
 from common.errors import Conflict
 from dependencies import SessionDep, get_today, get_training_log_repository
+from features.exercise.types import BodyPart
 from features.training_log.repository import DbTrainingLogRepository
 from features.training_log.types import ExerciseSet, TrainingLog
 from main import app
@@ -16,6 +17,7 @@ from main import app
 TODAY = date(2026, 10, 14)
 BENCH = {
     "name": "ベンチプレス",
+    "body_part": BodyPart.chest,
     "parent_uid": None,
     "coefficient": None,
     "e1rm_divisor": 40.0,

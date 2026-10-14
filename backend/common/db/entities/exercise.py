@@ -18,6 +18,7 @@ class ExerciseRow(Base):
         unique=True,
         nullable=False,
     )
+    body_part: Mapped[str] = mapped_column(String(16), nullable=False)
     parent_id: Mapped[int | None] = mapped_column(ForeignKey("exercises.id"), nullable=True)
     coefficient: Mapped[float | None] = mapped_column(Float, nullable=True)
     e1rm_divisor: Mapped[float | None] = mapped_column(Float, nullable=True)

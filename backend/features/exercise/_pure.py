@@ -3,6 +3,7 @@ from datetime import date, tzinfo
 
 from common.errors import BusinessRuleViolation
 from features.exercise.types import (
+    BodyPart,
     CalculationBasis,
     Exercise,
     ExerciseFields,
@@ -61,6 +62,7 @@ def validate_training_max_owner(exercise: Exercise) -> None:
 def build_exercise_fields(
     *,
     name: str,
+    body_part: BodyPart,
     parent: Exercise | None,
     coefficient: float | None,
     e1rm_divisor: float | None,
@@ -70,6 +72,7 @@ def build_exercise_fields(
     is_derived = parent is not None
     return ExerciseFields(
         name=name,
+        body_part=body_part,
         parent_id=parent.id if parent is not None else None,
         coefficient=coefficient if is_derived else None,
         e1rm_divisor=None if is_derived else e1rm_divisor,

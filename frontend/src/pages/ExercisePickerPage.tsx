@@ -1,11 +1,13 @@
-import { useCallback, useEffect, useRef, useState, type ReactElement } from 'react'
+import { useCallback, useEffect, useId, useRef, useState, type ReactElement } from 'react'
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
+import { BODY_PART_LABEL } from '@/api/constants'
 import { exercisesApi, trainingLogsApi } from '@/api/fetcher'
 import { Input } from '@/components/dads/Input'
 import { InputField } from '@/components/InputField'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useLoadable } from '@/hooks/useLoadable'
+import { groupExercisesByBodyPart } from '@/lib/exercises'
 
 const LOAD_FAILURE_MESSAGE = '種目の一覧を取得できませんでした'
 
@@ -17,6 +19,7 @@ function ExercisePicker({ trainingLogUid }: { trainingLogUid: string }): ReactEl
   const createdExerciseUid = searchParams.get('createdExerciseUid')
   const [exercises] = useLoadable(() => exercisesApi.list(), [], LOAD_FAILURE_MESSAGE)
   const [query, setQuery] = useState('')
+  const headingId = useId()
   const pickedCreatedExerciseUid = useRef<string | null>(null)
   const picking = useRef(false)
 
@@ -71,19 +74,26 @@ function ExercisePicker({ trainingLogUid }: { trainingLogUid: string }): ReactEl
           新しい種目として作成
         </Link>
       )}
-      <ul className="flex flex-col divide-y divide-border">
-        {matchedExercises.map((exercise) => (
-          <li key={exercise.uid}>
-            <button
-              type="button"
-              onClick={() => void pickExercise(exercise.uid)}
-              className="flex min-h-12 w-full items-center text-left text-std-16N-170"
-            >
-              {exercise.name}
-            </button>
-          </li>
-        ))}
-      </ul>
+      {groupExercisesByBodyPart(matchedExercises).map((group) => (
+        <section key={group.bodyPart} aria-labelledby={`${headingId}-${group.bodyPart}`} className="flex flex-col">
+          <h2 id={`${headingId}-${group.bodyPart}`} className="text-dns-14B-130 text-muted-foreground">
+            {BODY_PART_LABEL[group.bodyPart]}
+          </h2>
+          <ul className="flex flex-col divide-y divide-border">
+            {group.exercises.map((exercise) => (
+              <li key={exercise.uid}>
+                <button
+                  type="button"
+                  onClick={() => void pickExercise(exercise.uid)}
+                  className="flex min-h-12 w-full items-center text-left text-std-16N-170"
+                >
+                  {exercise.name}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ))}
     </div>
   )
 }

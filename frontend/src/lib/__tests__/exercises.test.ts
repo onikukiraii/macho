@@ -1,5 +1,22 @@
 import { describe, it, expect } from 'vitest'
-import { formatPlanned, formatSet } from '../exercises'
+import type { BodyPart, Exercise } from '@/api/constants'
+import { formatPlanned, formatSet, groupExercisesByBodyPart } from '../exercises'
+
+function buildExercise(name: string, bodyPart: BodyPart): Exercise {
+  return {
+    uid: name,
+    name,
+    body_part: bodyPart,
+    kind: 'double_progression',
+    parent_uid: null,
+    parent_name: null,
+    coefficient: null,
+    e1rm_divisor: 33.3,
+    increment_kg: 2.5,
+    default_rest_seconds: 90,
+    current_training_max: null,
+  }
+}
 
 describe('formatSet', () => {
   it.each([
@@ -30,5 +47,22 @@ describe('formatPlanned', () => {
     },
   ])('予定 $planned と目標重量 $targetWeight を $expected にする', ({ planned, targetWeight, expected }) => {
     expect(formatPlanned(planned, targetWeight)).toBe(expected)
+  })
+})
+
+describe('groupExercisesByBodyPart', () => {
+  it('胸・背中・肩・腕・脚・腹の順に並べ、部位の中は元の順を保ち、種目の無い部位は除く', () => {
+    const groups = groupExercisesByBodyPart([
+      buildExercise('スクワット', 'legs'),
+      buildExercise('ラットプルダウン', 'back'),
+      buildExercise('ベンチプレス', 'chest'),
+      buildExercise('懸垂', 'back'),
+    ])
+
+    expect(groups.map((group) => [group.bodyPart, group.exercises.map((exercise) => exercise.name)])).toEqual([
+      ['chest', ['ベンチプレス']],
+      ['back', ['ラットプルダウン', '懸垂']],
+      ['legs', ['スクワット']],
+    ])
   })
 })

@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from common.db.entities import ExerciseSetRow, PerformedExerciseRow
 from common.errors import Conflict
 from features.exercise.repository import DbExerciseRepository
-from features.exercise.types import ExerciseFields
+from features.exercise.types import BodyPart, ExerciseFields
 from features.training_log.repository import DbTrainingLogRepository
 from features.training_log.types import ExerciseSet, NewPerformedExercise, TrainingLog
 
@@ -15,6 +15,7 @@ from features.training_log.types import ExerciseSet, NewPerformedExercise, Train
 def _create_log(db_session: Session) -> TrainingLog:
     fields = ExerciseFields(
         name="ベンチプレス",
+        body_part=BodyPart.chest,
         parent_id=None,
         coefficient=None,
         e1rm_divisor=40.0,
@@ -87,6 +88,7 @@ class TestUpdatePerformedExercise:
             uid="squat",
             fields=ExerciseFields(
                 name="スクワット",
+                body_part=BodyPart.legs,
                 parent_id=None,
                 coefficient=None,
                 e1rm_divisor=40.0,

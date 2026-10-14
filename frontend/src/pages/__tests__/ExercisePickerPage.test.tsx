@@ -1,4 +1,4 @@
-import { fireEvent } from '@testing-library/react'
+import { fireEvent, within } from '@testing-library/react'
 import { Route, Routes, useParams } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { components } from '@/api/schema'
@@ -29,6 +29,7 @@ function buildExercise(overrides: Partial<Exercise>): Exercise {
   return {
     uid: 'exercise-1',
     name: 'スクワット',
+    body_part: 'legs',
     kind: 'training_max',
     parent_uid: null,
     parent_name: null,
@@ -93,12 +94,42 @@ describe('ExercisePickerPage', () => {
     fireEvent.change(await screen.findByRole('searchbox', { name: '種目を検索' }), { target: { value: 'ベンチ' } })
     fireEvent.click(screen.getByRole('link', { name: '新しい種目として作成' }))
     expect(await screen.findByRole('textbox', { name: '名前' })).toHaveValue('ベンチ')
+    fireEvent.change(screen.getByRole('combobox', { name: '部位' }), { target: { value: 'chest' } })
     fireEvent.click(screen.getByRole('button', { name: '保存する' }))
 
     expect(await screen.findByRole('region', { name: 'ベンチ' })).toBeInTheDocument()
     await waitFor(() =>
       expect(trainingLogsApi.addExercise).toHaveBeenCalledWith('log-1', { exercise_uid: 'exercise-created' }),
     )
+  })
+
+  it('検索に一致した種目を部位の見出しごとに分けて並べる', async () => {
+    vi.mocked(exercisesApi.list).mockResolvedValue([
+      buildExercise({ uid: 'squat', name: 'スクワット', body_part: 'legs' }),
+      buildExercise({ uid: 'bench', name: 'ベンチプレス', body_part: 'chest' }),
+      buildExercise({ uid: 'lat', name: 'ラットプルダウン', body_part: 'back' }),
+    ])
+    window.history.pushState({}, '', '/training-logs/log-1/exercise-picker')
+    render(
+      <Routes>
+        <Route path="/training-logs/:uid/exercise-picker" element={<ExercisePickerPage />} />
+      </Routes>,
+    )
+
+    const regions = await screen.findAllByRole('region')
+
+    expect(
+      regions.map((region) => [
+        within(region).getByRole('heading').textContent,
+        within(region)
+          .getAllByRole('button')
+          .map((button) => button.textContent),
+      ]),
+    ).toEqual([
+      ['胸', ['ベンチプレス']],
+      ['背中', ['ラットプルダウン']],
+      ['脚', ['スクワット']],
+    ])
   })
 
   describe('差し替え', () => {

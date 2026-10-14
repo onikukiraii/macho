@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from common.db.entities import ExerciseRow, TrainingMaxEvaluationRow, TrainingMaxRow
 from common.errors import Conflict, NotFound
-from features.exercise.types import Exercise, ExerciseFields, TrainingMax, TrainingMaxSource
+from features.exercise.types import BodyPart, Exercise, ExerciseFields, TrainingMax, TrainingMaxSource
 
 
 class DbExerciseRepository:
@@ -73,6 +73,7 @@ class DbExerciseRepository:
 
 def _apply_fields(row: ExerciseRow, fields: ExerciseFields) -> None:
     row.name = fields.name
+    row.body_part = fields.body_part
     row.parent_id = fields.parent_id
     row.coefficient = fields.coefficient
     row.e1rm_divisor = fields.e1rm_divisor
@@ -85,6 +86,7 @@ def _to_domain(row: ExerciseRow) -> Exercise:
         id=row.id,
         uid=row.uid,
         name=row.name,
+        body_part=BodyPart(row.body_part),
         parent_id=row.parent_id,
         coefficient=row.coefficient,
         e1rm_divisor=row.e1rm_divisor,

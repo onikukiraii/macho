@@ -11,17 +11,19 @@ from sqlalchemy.orm import Session
 from common.errors import Conflict
 from features.exercise.repository import DbExerciseRepository
 from features.exercise.service import create_exercise, is_week_evaluated
-from features.exercise.types import TrainingMaxSource
+from features.exercise.types import BodyPart, TrainingMaxSource
 from features.program.repository import DbProgramRepository
 from features.program.types import Program, Weekday
 from features.training_log.repository import DbTrainingLogRepository
 from features.training_log.service import create_training_log
 from features.training_log.types import ExerciseSet, TrainingLog
 from scripts.import_legacy import (
+    BODY_PARTS_CSV,
     BULKING_PHASE_CSV,
     CUTTING_PHASE_CSV,
     DESIGN_NOTE_MD,
     EXERCISE_MASTER_CSV,
+    EXERCISE_NAMES,
     TRAINING_LOGS_CSV,
     TRAINING_MAXES_CSV,
     InvalidLegacyFile,
@@ -34,6 +36,7 @@ TODAY = date(2026, 10, 14)
 TRAINING_COLUMNS = ("日付", "種目", "セット", "重量", "レップ数")
 MASTER_COLUMNS = ("種目", "区分", "係数")
 TRAINING_MAX_COLUMNS = ("種目", "トレーニングマックス")
+BODY_PART_COLUMNS = ("種目", "部位")
 PHASE_COLUMNS = ("週", "目安日", "Day", "種目", "セット", "レップ", "目標RPE", "実績重量kg", "実績レップ", "実績RIR")
 MASTER = [
     ("スクワット", "SQ", 1),
@@ -80,12 +83,16 @@ def _write_inputs(
     cutting_rows: list[tuple[object, ...]] | None = None,
     master: list[tuple[str, str, float]] = MASTER,
     training_maxes: list[tuple[str, float]] | None = None,
+    body_parts: list[tuple[str, str]] | None = None,
 ) -> None:
     _write_csv(tmp_path / TRAINING_LOGS_CSV, TRAINING_COLUMNS, training_rows)
     _write_csv(tmp_path / EXERCISE_MASTER_CSV, MASTER_COLUMNS, master)
     _write_csv(tmp_path / BULKING_PHASE_CSV, PHASE_COLUMNS, bulking_rows)
     _write_csv(tmp_path / CUTTING_PHASE_CSV, PHASE_COLUMNS, cutting_rows or [])
     _write_csv(tmp_path / TRAINING_MAXES_CSV, TRAINING_MAX_COLUMNS, training_maxes or [])
+    names = [*(row[1] for row in training_rows), *(str(row[3]) for row in bulking_rows), *(row[0] for row in master)]
+    all_legs = [(name, "脚") for name in dict.fromkeys(EXERCISE_NAMES.get(name, name) for name in names)]
+    _write_csv(tmp_path / BODY_PARTS_CSV, BODY_PART_COLUMNS, all_legs if body_parts is None else body_parts)
     (tmp_path / DESIGN_NOTE_MD).write_text(f"{DESIGN_NOTE}\n", encoding="utf-8")
 
 
@@ -98,6 +105,7 @@ def _import(
     cutting_rows: list[tuple[object, ...]] | None = None,
     master: list[tuple[str, str, float]] = MASTER,
     training_maxes: list[tuple[str, float]] | None = None,
+    body_parts: list[tuple[str, str]] | None = None,
 ) -> None:
     _write_inputs(
         tmp_path,
@@ -106,6 +114,7 @@ def _import(
         cutting_rows=cutting_rows,
         master=master,
         training_maxes=training_maxes,
+        body_parts=body_parts,
     )
     import_legacy_records(db_session, seed_dir=tmp_path, today=TODAY)
 
@@ -405,6 +414,7 @@ class TestImportLegacyRecords:
         create_exercise(
             exercise_repo,
             name="ベンチプレス",
+            body_part=BodyPart.chest,
             parent_uid=None,
             coefficient=None,
             e1rm_divisor=40.0,
@@ -640,6 +650,51 @@ class TestImportLegacyRecords:
             [],
         )
 
+    def test_body_parts_の部位を種目ごとに設定する(self, db_session: Session, tmp_path: Path) -> None:
+        _import(
+            db_session,
+            tmp_path,
+            training_rows=[_training_row("2026-10-01", "ラットプルダウン", 1, "55", "10")],
+            bulking_rows=[_phase("1", "2026-09-28", "Day1 月", "スクワット")],
+            master=[("スクワット", "SQ", 1), ("ベンチプレス", "BP", 1)],
+            body_parts=[("スクワット", "脚"), ("ベンチプレス", "胸"), ("ラットプルダウン", "背中")],
+        )
+
+        assert {exercise.name: exercise.body_part for exercise in DbExerciseRepository(db_session).list_all()} == {
+            "スクワット": BodyPart.legs,
+            "ベンチプレス": BodyPart.chest,
+            "ラットプルダウン": BodyPart.back,
+        }
+
+    @pytest.mark.parametrize(
+        ("body_parts", "reason"),
+        [
+            pytest.param(
+                [("スクワット", "脚"), ("ベンチプレス", "胸")],
+                r"body_parts.csv に部位の無い種目があります: \['ラットプルダウン'\]",
+                id="部位の無い種目がある",
+            ),
+            pytest.param(
+                [("スクワット", "脚"), ("ベンチプレス", "胸"), ("ラットプルダウン", "首")],
+                "body_parts.csv の部位は 胸、背中、肩、腕、脚、腹 のどれかにしてください",
+                id="6つ以外の部位",
+            ),
+        ],
+    )
+    def test_部位の入力が不正なら何も書き込まずに理由を出して中断する(
+        self, db_session: Session, tmp_path: Path, body_parts: list[tuple[str, str]], reason: str
+    ) -> None:
+        with pytest.raises(InvalidLegacyFile, match=reason):
+            _import(
+                db_session,
+                tmp_path,
+                training_rows=[_training_row("2026-10-01", "ラットプルダウン", 1, "55", "10")],
+                bulking_rows=[_phase("1", "2026-09-28", "Day1 月", "スクワット")],
+                master=[("スクワット", "SQ", 1), ("ベンチプレス", "BP", 1)],
+                body_parts=body_parts,
+            )
+        assert _exercise_names(db_session) == {}
+
     @pytest.mark.parametrize(
         ("training_maxes", "reason"),
         [
@@ -717,6 +772,7 @@ class TestMain:
         create_exercise(
             DbExerciseRepository(db_session),
             name="ベンチプレス",
+            body_part=BodyPart.chest,
             parent_uid=None,
             coefficient=None,
             e1rm_divisor=40.0,

@@ -3,6 +3,7 @@ import type { components } from './schema'
 type Schemas = components['schemas']
 
 export type ExerciseKind = Schemas['ExerciseKind']
+export type BodyPart = Schemas['BodyPart']
 export type DayStatus = Schemas['DayStatus']
 export type Weekday = Schemas['Weekday']
 export type Exercise = Schemas['ExerciseResponse']
@@ -16,6 +17,17 @@ export const EXERCISE_KIND_LABEL: Record<ExerciseKind, string> = {
   training_max: 'トレーニングマックスを持つ種目',
   derived: '派生種目',
   double_progression: 'ダブルプログレッションの種目',
+}
+
+export const BODY_PART_ORDER: BodyPart[] = ['chest', 'back', 'shoulders', 'arms', 'legs', 'abs']
+
+export const BODY_PART_LABEL: Record<BodyPart, string> = {
+  chest: '胸',
+  back: '背中',
+  shoulders: '肩',
+  arms: '腕',
+  legs: '脚',
+  abs: '腹',
 }
 
 export const DAY_STATUS_LABEL: Record<DayStatus, string> = {

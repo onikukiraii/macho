@@ -5,7 +5,7 @@ import pytest
 
 from common.errors import BusinessRuleViolation
 from features.exercise._pure import classify_exercise, select_training_max, validate_derivation
-from features.exercise.types import Exercise, ExerciseKind, TrainingMax, TrainingMaxSource
+from features.exercise.types import BodyPart, Exercise, ExerciseKind, TrainingMax, TrainingMaxSource
 
 TOKYO = ZoneInfo("Asia/Tokyo")
 
@@ -15,6 +15,7 @@ def _exercise(*, id: int, name: str, parent_id: int | None = None) -> Exercise:
         id=id,
         uid=f"uid-{id}",
         name=name,
+        body_part=BodyPart.chest,
         parent_id=parent_id,
         coefficient=None if parent_id is None else 0.87,
         e1rm_divisor=40.0 if parent_id is None else None,

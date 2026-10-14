@@ -5,10 +5,16 @@ from sqlalchemy.orm import Session
 
 from common.errors import Conflict
 from features.exercise.repository import DbExerciseRepository
-from features.exercise.types import ExerciseFields, TrainingMax, TrainingMaxSource
+from features.exercise.types import BodyPart, ExerciseFields, TrainingMax, TrainingMaxSource
 
 SQUAT = ExerciseFields(
-    name="スクワット", parent_id=None, coefficient=None, e1rm_divisor=33.3, increment_kg=2.5, default_rest_seconds=180
+    name="スクワット",
+    body_part=BodyPart.legs,
+    parent_id=None,
+    coefficient=None,
+    e1rm_divisor=33.3,
+    increment_kg=2.5,
+    default_rest_seconds=180,
 )
 
 

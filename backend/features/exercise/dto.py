@@ -3,7 +3,7 @@ from typing import Annotated
 
 from pydantic import BaseModel, Field, StringConstraints
 
-from features.exercise.types import ExerciseKind, TrainingMaxSource
+from features.exercise.types import BodyPart, ExerciseKind, TrainingMaxSource
 
 _NO_CONTROL_OR_ZERO_WIDTH = r"^[^\x00-\x1f\x7f\u200b-\u200d\u2060\ufeff]+$"
 
@@ -11,6 +11,7 @@ _NO_CONTROL_OR_ZERO_WIDTH = r"^[^\x00-\x1f\x7f\u200b-\u200d\u2060\ufeff]+$"
 class ExerciseResponse(BaseModel):
     uid: str
     name: str
+    body_part: BodyPart
     kind: ExerciseKind
     parent_uid: str | None
     parent_name: str | None
@@ -37,6 +38,7 @@ class ExerciseSaveParams(BaseModel):
     name: Annotated[
         str, StringConstraints(strip_whitespace=True, min_length=1, max_length=64, pattern=_NO_CONTROL_OR_ZERO_WIDTH)
     ]
+    body_part: BodyPart
     parent_uid: str | None
     coefficient: float | None = Field(gt=0, le=2, allow_inf_nan=False)
     e1rm_divisor: float | None = Field(gt=0, le=100, allow_inf_nan=False)

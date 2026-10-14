@@ -17,7 +17,7 @@ from common.db.session import SessionLocal
 from common.errors import Conflict
 from dependencies import get_exercise_repository, get_program_repository, get_today, get_training_log_repository
 from features.exercise import service as exercise_service
-from features.exercise.dto import ExerciseSaveParams
+from features.exercise.dto import ExerciseSaveParams, TrainingMaxCreateParams
 from features.exercise.protocol import ExerciseRepository
 from features.exercise.types import Exercise
 from features.program import service as program_service
@@ -34,7 +34,9 @@ TRAINING_LOGS_CSV = "training_logs.csv"
 EXERCISE_MASTER_CSV = "exercise_master.csv"
 BULKING_PHASE_CSV = "bulking_phase.csv"
 CUTTING_PHASE_CSV = "cutting_phase.csv"
+TRAINING_MAXES_CSV = "training_maxes.csv"
 DESIGN_NOTE_MD = "design_note.md"
+TRAINING_MAX_REASON = "初期データの投入"
 PROGRAM_NAME = "2026 増量期"
 PROGRAM_START_DATE = date(2026, 9, 28)
 EXERCISE_NAMES = {
@@ -96,6 +98,12 @@ class PhaseRow:
     actual_weight: float | None
     actual_reps: int | None
     actual_rir: int | None
+
+
+@dataclass(frozen=True)
+class SeedTrainingMax:
+    exercise_name: str
+    value: float
 
 
 @dataclass(frozen=True)
@@ -334,6 +342,21 @@ def validate_exercise_plans(plans: Iterable[ExerciseToCreate]) -> None:
         )
 
 
+def validate_training_maxes(training_maxes: Iterable[SeedTrainingMax], *, master: Sequence[MasterExercise]) -> None:
+    base_names = {exercise.name for exercise in master if exercise.coefficient == 1}
+    for training_max in training_maxes:
+        if training_max.exercise_name not in base_names:
+            raise InvalidLegacyFile(
+                "training_maxes.csv の種目は exercise_master.csv で係数 1 の種目にしてください: "
+                f"{training_max.exercise_name}"
+            )
+        _validate_api_params(
+            TrainingMaxCreateParams,
+            {"value": training_max.value, "reason": TRAINING_MAX_REASON},
+            reason=f"training_maxes.csv の値が受け付けられる範囲を外れています: {training_max.exercise_name}",
+        )
+
+
 def import_legacy_records(session: Session, *, seed_dir: Path, today: date) -> None:
     exercise_repo = get_exercise_repository(session)
     program_repo = get_program_repository(session)
@@ -356,14 +379,20 @@ def import_legacy_records(session: Session, *, seed_dir: Path, today: date) -> N
     )
     training_logs = rir_filling.training_logs
     validate_training_logs(training_logs, today=today)
-    exercise_plans = plan_exercises(
-        _read_master_exercises(seed_dir / EXERCISE_MASTER_CSV),
-        training_logs,
-        planned_names=[row.exercise_name for row in bulking_rows],
-    )
+    master = _read_master_exercises(seed_dir / EXERCISE_MASTER_CSV)
+    exercise_plans = plan_exercises(master, training_logs, planned_names=[row.exercise_name for row in bulking_rows])
     validate_exercise_plans(exercise_plans)
+    training_maxes = _read_training_maxes(seed_dir / TRAINING_MAXES_CSV)
+    validate_training_maxes(training_maxes, master=master)
 
     exercises = _create_exercises(exercise_repo, exercise_plans)
+    for training_max in training_maxes:
+        exercise_service.add_training_max(
+            exercise_repo,
+            uid=exercises[training_max.exercise_name].uid,
+            value=training_max.value,
+            reason=TRAINING_MAX_REASON,
+        )
     program = program_service.create_program(
         program_repo,
         program=build_program(
@@ -390,10 +419,15 @@ def import_legacy_records(session: Session, *, seed_dir: Path, today: date) -> N
             today=today,
         )
 
-    # 移行後に利用者が入力する TM へ、取り込んだ週の実績で自動の +2.5 が重ならないようにする
+    # 直近の実績から決めた seed の TM へ、取り込んだ週の実績で自動の +2.5 が重ならないようにする
     training_log_service.mark_week_evaluated(exercise_repo, on=training_logs[-1].date)
 
-    logger.info("種目 %d 件とプログラム %d 週を取り込みました", len(exercises), len(program.weeks))
+    logger.info(
+        "種目 %d 件、トレーニングマックス %d 件、プログラム %d 週を取り込みました",
+        len(exercises),
+        len(training_maxes),
+        len(program.weeks),
+    )
     logger.info(
         "トレーニング記録 %d 日、セット %d 件を取り込みました。Day に紐付けた記録は %d 日です",
         len(training_logs),
@@ -407,7 +441,7 @@ def import_legacy_records(session: Session, *, seed_dir: Path, today: date) -> N
 
 def main(argv: Sequence[str] | None = None) -> None:
     parser = argparse.ArgumentParser(
-        description="seed の CSV と設計メモから、種目、増量期のプログラム、トレーニング記録を空の DB に取り込む"
+        description="seed の CSV と設計メモから、種目、プログラム、トレーニング記録などを空の DB に取り込む"
     )
     parser.add_argument(
         "--seed-dir", type=Path, required=True, help="seed のディレクトリ。形式は data/README.md にある"
@@ -491,6 +525,13 @@ def _read_csv(path: Path) -> list[dict[str, str]]:
 def _read_master_exercises(path: Path) -> list[MasterExercise]:
     return [
         MasterExercise(name=row["種目"].strip(), category=row["区分"], coefficient=float(row["係数"]))
+        for row in _read_csv(path)
+    ]
+
+
+def _read_training_maxes(path: Path) -> list[SeedTrainingMax]:
+    return [
+        SeedTrainingMax(exercise_name=row["種目"].strip(), value=float(row["トレーニングマックス"]))
         for row in _read_csv(path)
     ]
 

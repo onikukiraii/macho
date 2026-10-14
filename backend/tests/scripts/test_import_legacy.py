@@ -2,7 +2,7 @@ import csv
 import io
 import logging
 from collections.abc import Sequence
-from datetime import UTC, date, datetime
+from datetime import date
 from pathlib import Path
 
 import pytest
@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 from common.errors import Conflict
 from features.exercise.repository import DbExerciseRepository
 from features.exercise.service import create_exercise, is_week_evaluated
-from features.exercise.types import TrainingMax, TrainingMaxSource
+from features.exercise.types import TrainingMaxSource
 from features.program.repository import DbProgramRepository
 from features.program.types import Program, Weekday
 from features.training_log.repository import DbTrainingLogRepository
@@ -23,6 +23,7 @@ from scripts.import_legacy import (
     DESIGN_NOTE_MD,
     EXERCISE_MASTER_CSV,
     TRAINING_LOGS_CSV,
+    TRAINING_MAXES_CSV,
     InvalidLegacyFile,
     import_legacy_records,
     main,
@@ -32,6 +33,7 @@ from scripts.import_legacy import (
 TODAY = date(2026, 10, 14)
 TRAINING_COLUMNS = ("日付", "種目", "セット", "重量", "レップ数")
 MASTER_COLUMNS = ("種目", "区分", "係数")
+TRAINING_MAX_COLUMNS = ("種目", "トレーニングマックス")
 PHASE_COLUMNS = ("週", "目安日", "Day", "種目", "セット", "レップ", "目標RPE", "実績重量kg", "実績レップ", "実績RIR")
 MASTER = [
     ("スクワット", "SQ", 1),
@@ -77,11 +79,13 @@ def _write_inputs(
     bulking_rows: list[tuple[object, ...]],
     cutting_rows: list[tuple[object, ...]] | None = None,
     master: list[tuple[str, str, float]] = MASTER,
+    training_maxes: list[tuple[str, float]] | None = None,
 ) -> None:
     _write_csv(tmp_path / TRAINING_LOGS_CSV, TRAINING_COLUMNS, training_rows)
     _write_csv(tmp_path / EXERCISE_MASTER_CSV, MASTER_COLUMNS, master)
     _write_csv(tmp_path / BULKING_PHASE_CSV, PHASE_COLUMNS, bulking_rows)
     _write_csv(tmp_path / CUTTING_PHASE_CSV, PHASE_COLUMNS, cutting_rows or [])
+    _write_csv(tmp_path / TRAINING_MAXES_CSV, TRAINING_MAX_COLUMNS, training_maxes or [])
     (tmp_path / DESIGN_NOTE_MD).write_text(f"{DESIGN_NOTE}\n", encoding="utf-8")
 
 
@@ -93,9 +97,15 @@ def _import(
     bulking_rows: list[tuple[object, ...]],
     cutting_rows: list[tuple[object, ...]] | None = None,
     master: list[tuple[str, str, float]] = MASTER,
+    training_maxes: list[tuple[str, float]] | None = None,
 ) -> None:
     _write_inputs(
-        tmp_path, training_rows=training_rows, bulking_rows=bulking_rows, cutting_rows=cutting_rows, master=master
+        tmp_path,
+        training_rows=training_rows,
+        bulking_rows=bulking_rows,
+        cutting_rows=cutting_rows,
+        master=master,
+        training_maxes=training_maxes,
     )
     import_legacy_records(db_session, seed_dir=tmp_path, today=TODAY)
 
@@ -341,7 +351,27 @@ class TestImportLegacyRecords:
             (date(2026, 10, 3), None),
         ]
 
-    def test_移行のあとで_TM_を入力して新しい週の記録を作っても取り込んだ週の実績で_TM_を上げない(
+    def test_training_maxes_の値を本体の種目のトレーニングマックスとして登録する(
+        self, db_session: Session, tmp_path: Path
+    ) -> None:
+        _import(
+            db_session,
+            tmp_path,
+            training_rows=[_training_row("2026-10-01", "スクワット", 1, "80", "5")],
+            bulking_rows=[_phase("1", "2026-09-28", "Day1 月", "スクワット")],
+            training_maxes=[("スクワット", 100.8), ("ベンチプレス", 85.2)],
+        )
+
+        names = _exercise_names(db_session)
+        assert {
+            names[training_max.exercise_id]: (training_max.value, training_max.source)
+            for training_max in DbExerciseRepository(db_session).list_training_maxes()
+        } == {
+            "スクワット": (100.8, TrainingMaxSource.manual),
+            "ベンチプレス": (85.2, TrainingMaxSource.manual),
+        }
+
+    def test_新しい週の記録を作っても取り込んだ週の実績で_seed_のトレーニングマックスを上げない(
         self, db_session: Session, tmp_path: Path
     ) -> None:
         _import(
@@ -353,20 +383,9 @@ class TestImportLegacyRecords:
                 _training_row("2026-10-13", "スクワット", 1, "100", "5"),
             ],
             bulking_rows=[_phase("1", "2026-09-28", "Day1 月", "スクワット")],
+            training_maxes=[("スクワット", 100.0)],
         )
         exercise_repo = DbExerciseRepository(db_session)
-        squat_id = next(
-            exercise_id for exercise_id, name in _exercise_names(db_session).items() if name == "スクワット"
-        )
-        exercise_repo.add_training_max(
-            TrainingMax(
-                exercise_id=squat_id,
-                value=100.0,
-                effective_at=datetime(2026, 10, 14, 1, 0, tzinfo=UTC),
-                source=TrainingMaxSource.manual,
-                reason="移行後の入力",
-            )
-        )
 
         create_training_log(
             DbTrainingLogRepository(db_session),
@@ -620,6 +639,39 @@ class TestImportLegacyRecords:
             None,
             [],
         )
+
+    @pytest.mark.parametrize(
+        ("training_maxes", "reason"),
+        [
+            pytest.param(
+                [("ポーズベンチ", 80.0)],
+                "training_maxes.csv の種目は exercise_master.csv で係数 1 の種目にしてください",
+                id="派生種目",
+            ),
+            pytest.param(
+                [("ラットプルダウン", 80.0)],
+                "training_maxes.csv の種目は exercise_master.csv で係数 1 の種目にしてください",
+                id="種目マスタに無い種目",
+            ),
+            pytest.param(
+                [("スクワット", 500.5)],
+                "training_maxes.csv の値が受け付けられる範囲を外れています",
+                id="500kgを超える",
+            ),
+        ],
+    )
+    def test_トレーニングマックスの入力が不正なら何も書き込まずに理由を出して中断する(
+        self, db_session: Session, tmp_path: Path, training_maxes: list[tuple[str, float]], reason: str
+    ) -> None:
+        with pytest.raises(InvalidLegacyFile, match=reason):
+            _import(
+                db_session,
+                tmp_path,
+                training_rows=[_training_row("2026-10-01", "スクワット", 1, "80", "5")],
+                bulking_rows=[_phase("1", "2026-09-28", "Day1 月", "スクワット")],
+                training_maxes=training_maxes,
+            )
+        assert _exercise_names(db_session) == {}
 
 
 class TestParseTrainingCsv:

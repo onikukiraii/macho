@@ -89,3 +89,9 @@ class ResolvedExercise:
 class ExerciseDetail:
     exercise: ResolvedExercise
     training_max_history: tuple[TrainingMax, ...]
+
+
+@dataclass(frozen=True)
+class TrainingMaxRecord:
+    exercise_name: str
+    training_max: TrainingMax

@@ -7,10 +7,11 @@ from common.config import settings
 from common.errors import Conflict, NotFound
 from features.exercise import service as exercise_service
 from features.exercise.protocol import ExerciseRepository
-from features.exercise.types import TrainingMaxUpdate
+from features.exercise.types import CalculationBasis, TrainingMaxUpdate
 from features.program import service as program_service
 from features.program.protocol import ProgramRepository
 from features.program.types import Program
+from features.training_log import _pure
 from features.training_log._pure import (
     build_export_csv,
     build_previous_result,
@@ -71,6 +72,11 @@ def get_latest_training_log(
     if latest is None:
         return None
     return _summarize([latest], exercise_repo=exercise_repo, program_repo=program_repo, on=latest.date)[0]
+
+
+def get_latest_recorded_date(repo: TrainingLogRepository) -> date | None:
+    latest = repo.get_latest()
+    return None if latest is None else latest.date
 
 
 def get_day_options(repo: TrainingLogRepository, *, program_repo: ProgramRepository) -> list[DayOption]:
@@ -237,6 +243,21 @@ def export_training_logs(
         bases_by_date={on: exercise_service.get_calculation_bases(exercise_repo, on=on) for on in exported_dates},
         scheduled_days=_index_scheduled_days(program_repo, exported_dates),
     )
+
+
+def list_training_logs_between(repo: TrainingLogRepository, *, from_date: date, to_date: date) -> list[TrainingLog]:
+    validate_period(from_date=from_date, to_date=to_date)
+    return repo.list_between(from_date=from_date, to_date=to_date)
+
+
+def calculate_e1rm(exercise_set: ExerciseSet, *, basis: CalculationBasis) -> float:
+    return _pure.calculate_e1rm(exercise_set, basis=basis)
+
+
+def calculate_training_max_weight(
+    basis: CalculationBasis, *, reps: int, target_rpe: float | None, target_percent: float | None
+) -> float | None:
+    return _pure.calculate_training_max_weight(basis, reps=reps, target_rpe=target_rpe, target_percent=target_percent)
 
 
 def count_export_sets(repo: TrainingLogRepository, *, from_date: date, to_date: date) -> int:

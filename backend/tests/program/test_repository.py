@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from common.errors import Conflict
 from features.exercise.repository import DbExerciseRepository
 from features.exercise.types import BodyPart, ExerciseFields
-from features.program.repository import DbProgramRepository
+from features.program.repository import DbProgramRepository, DbProgramRulesRepository
 from features.program.types import NewPlannedExercise, NewProgram, NewProgramDay, NewProgramWeek, Weekday
 
 
@@ -307,3 +307,10 @@ class TestGetLatestStartedOnOrBefore:
         )
 
         assert repo.get_latest_started_on_or_before(date(2026, 9, 27)) is None
+
+
+class TestProgramRulesGet:
+    def test_一度も保存していなければ本文は空で更新日時は無い(self, db_session: Session) -> None:
+        rules = DbProgramRulesRepository(db_session).get()
+
+        assert (rules.body, rules.updated_at) == ("", None)

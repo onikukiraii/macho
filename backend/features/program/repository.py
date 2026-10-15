@@ -1,17 +1,18 @@
 from collections.abc import Sequence
-from datetime import date
+from datetime import date, datetime
 
 from sqlalchemy import Select, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
-from common.db.entities import PlannedExerciseRow, ProgramDayRow, ProgramRow, ProgramWeekRow
+from common.db.entities import PlannedExerciseRow, ProgramDayRow, ProgramRow, ProgramRulesRow, ProgramWeekRow
 from common.errors import Conflict
 from features.program.types import (
     NewProgram,
     PlannedExercise,
     Program,
     ProgramDay,
+    ProgramRules,
     ProgramWeek,
     Weekday,
 )
@@ -23,6 +24,18 @@ class DbProgramRepository:
 
     def get_latest(self) -> Program | None:
         return self._get_first(select(ProgramRow))
+
+    def list_all(self) -> list[Program]:
+        statement = (
+            select(ProgramRow)
+            .options(
+                selectinload(ProgramRow.weeks)
+                .selectinload(ProgramWeekRow.days)
+                .selectinload(ProgramDayRow.planned_exercises)
+            )
+            .order_by(ProgramRow.start_date.desc(), ProgramRow.id.desc())
+        )
+        return [_to_domain(row) for row in self._session.execute(statement).scalars()]
 
     def get_latest_started_on_or_before(self, on: date) -> Program | None:
         return self._get_first(select(ProgramRow).where(ProgramRow.start_date <= on))
@@ -82,6 +95,31 @@ class DbProgramRepository:
         ).order_by(ProgramRow.start_date.desc(), ProgramRow.id.desc())
         row = self._session.execute(statement).scalars().first()
         return None if row is None else _to_domain(row)
+
+
+class DbProgramRulesRepository:
+    def __init__(self, session: Session) -> None:
+        self._session = session
+
+    def get(self) -> ProgramRules:
+        row = self._get_row()
+        if row is None:
+            return ProgramRules(body="", updated_at=None)
+        return ProgramRules(body=row.body, updated_at=row.updated_at)
+
+    def save(self, *, body: str, updated_at: datetime) -> ProgramRules:
+        row = self._get_row()
+        if row is None:
+            row = ProgramRulesRow(body=body, updated_at=updated_at)
+            self._session.add(row)
+        else:
+            row.body = body
+            row.updated_at = updated_at
+        self._session.commit()
+        return ProgramRules(body=row.body, updated_at=row.updated_at)
+
+    def _get_row(self) -> ProgramRulesRow | None:
+        return self._session.execute(select(ProgramRulesRow).order_by(ProgramRulesRow.id)).scalars().first()
 
 
 def _to_domain(row: ProgramRow) -> Program:

@@ -13,8 +13,8 @@ from common.gateway.protocol import JobQueue
 from common.local_date import to_local_date
 from features.exercise.protocol import ExerciseRepository
 from features.exercise.repository import DbExerciseRepository
-from features.program.protocol import ProgramRepository
-from features.program.repository import DbProgramRepository
+from features.program.protocol import ProgramRepository, ProgramRulesRepository
+from features.program.repository import DbProgramRepository, DbProgramRulesRepository
 from features.rest_timer.gateway import WebPushSender
 from features.rest_timer.protocol import PushSender, RestTimerRepository
 from features.rest_timer.repository import DbRestTimerRepository
@@ -48,6 +48,10 @@ def get_exercise_repository(session: SessionDep) -> ExerciseRepository:
 
 def get_program_repository(session: SessionDep) -> ProgramRepository:
     return DbProgramRepository(session)
+
+
+def get_program_rules_repository(session: SessionDep) -> ProgramRulesRepository:
+    return DbProgramRulesRepository(session)
 
 
 def get_training_log_repository(session: SessionDep) -> TrainingLogRepository:

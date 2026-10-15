@@ -2,7 +2,7 @@ from datetime import date
 
 import pytest
 
-from features.program._pure import calculate_guide_date, list_days_in_order
+from features.program._pure import calculate_guide_date, list_days_in_order, list_past_programs
 from features.program.types import Program, ProgramDay, ProgramWeek, Weekday
 
 
@@ -60,3 +60,37 @@ class TestListDaysInOrder:
         ordered = [(entry.week.week, entry.day.day) for entry in list_days_in_order(program)]
 
         assert ordered == [(1, 1), (1, 2), (2, 1)]
+
+
+def _program(*, id: int, name: str, start_date: date) -> Program:
+    return Program(
+        id=id,
+        uid=f"program-{id}",
+        name=name,
+        start_date=start_date,
+        tm_auto_update=True,
+        design_note="",
+        weeks=(ProgramWeek(week=1, label="A", days=(_day(id=id, day=1, weekday=Weekday.mon),)),),
+    )
+
+
+class TestListPastPrograms:
+    @pytest.mark.parametrize(
+        ("programs", "expected"),
+        [
+            (
+                [
+                    _program(id=1, name="2026 増量期", start_date=date(2026, 9, 28)),
+                    _program(id=3, name="ベンチ スモロフ Jr", start_date=date(2026, 10, 19)),
+                    _program(id=2, name="2026 減量期", start_date=date(2026, 6, 1)),
+                ],
+                [("2026 増量期", date(2026, 10, 18)), ("2026 減量期", date(2026, 9, 27))],
+            ),
+            ([_program(id=1, name="2026 増量期", start_date=date(2026, 9, 28))], []),
+            ([], []),
+        ],
+    )
+    def test_最新以外を開始日の新しい順に並べ終了日を次のプログラムの開始日の前日にする(
+        self, programs: list[Program], expected: list[tuple[str, date]]
+    ) -> None:
+        assert [(past.program.name, past.end_date) for past in list_past_programs(programs)] == expected

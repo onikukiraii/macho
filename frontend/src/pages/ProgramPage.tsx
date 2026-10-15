@@ -1,6 +1,8 @@
 import type { ReactElement } from 'react'
 import { Link } from 'react-router-dom'
+import { ChevronRight } from 'lucide-react'
 import { trainingLogsApi } from '@/api/fetcher'
+import { Button } from '@/components/Button'
 import { DAY_STATUS_LABEL, WEEKDAY_LABEL, type DayStatus, type ProgramWeekProgress } from '@/api/constants'
 import { Disclosure, DisclosureSummary } from '@/components/dads/Disclosure'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -57,6 +59,23 @@ function WeekTitle({ week }: { week: ProgramWeekProgress }): ReactElement {
   )
 }
 
+function CreateProgramButton(): ReactElement {
+  return (
+    <Button asChild size="sm" variant="solid-fill" className="shrink-0">
+      <Link to="/program/new">作成</Link>
+    </Button>
+  )
+}
+
+function PastProgramsLink(): ReactElement {
+  return (
+    <Link to="/program/past" className="flex min-h-12 items-center justify-between rounded-8 bg-card px-3 text-std-16B-170">
+      過去のプログラム
+      <ChevronRight aria-hidden className="size-5 text-muted-foreground" />
+    </Link>
+  )
+}
+
 export function ProgramPage(): ReactElement {
   const [progress] = useLoadable(() => trainingLogsApi.programProgress(), [], LOAD_FAILURE_MESSAGE)
 
@@ -72,19 +91,34 @@ export function ProgramPage(): ReactElement {
     )
   }
   if (progress.status === 'failed') return <p className="p-4 text-muted-foreground">{LOAD_FAILURE_MESSAGE}</p>
-  if (progress.value === null) return <p className="p-4 text-muted-foreground">進行中のプログラムはありません</p>
+  if (progress.value === null) {
+    return (
+      <div className="flex flex-col gap-6 p-4">
+        <header className="flex items-start justify-between gap-4">
+          <h1 className="text-std-24B-150">プログラム</h1>
+          <CreateProgramButton />
+        </header>
+        <p className="text-muted-foreground">進行中のプログラムはありません</p>
+        <PastProgramsLink />
+      </div>
+    )
+  }
 
   const program = progress.value
   const nextWeek = program.weeks.find((week) => week.days.some((day) => day.status === 'next'))?.week
 
   return (
     <div className="flex flex-col gap-6 p-4">
-      <header className="flex flex-col gap-1">
-        <h1 className="text-std-24B-150">{program.name}</h1>
-        <p className="text-dns-14N-130 text-muted-foreground">
-          {formatDateString(program.start_date)} 開始 / 全{program.week_count}週
-        </p>
+      <header className="flex items-start justify-between gap-4">
+        <div className="flex flex-col gap-1">
+          <h1 className="text-std-24B-150">{program.name}</h1>
+          <p className="text-dns-14N-130 text-muted-foreground">
+            {formatDateString(program.start_date)} 開始 / 全{program.week_count}週
+          </p>
+        </div>
+        <CreateProgramButton />
       </header>
+      <PastProgramsLink />
       {program.design_note !== '' && (
         <Disclosure className="rounded-8 bg-card p-3">
           <DisclosureSummary className="text-std-16B-170">設計メモ</DisclosureSummary>

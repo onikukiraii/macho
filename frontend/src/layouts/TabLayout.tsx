@@ -1,10 +1,11 @@
 import { NavLink, Outlet } from 'react-router-dom'
-import { Dumbbell, Download, House, ListChecks } from 'lucide-react'
+import { ChartLine, Dumbbell, Download, House, ListChecks } from 'lucide-react'
 
 const TABS = [
   { to: '/', label: 'ホーム', icon: House },
   { to: '/program', label: 'プログラム', icon: ListChecks },
   { to: '/exercises', label: '種目', icon: Dumbbell },
+  { to: '/analytics', label: '分析', icon: ChartLine },
   { to: '/export', label: '出力', icon: Download },
 ]
 
@@ -15,7 +16,7 @@ export function TabLayout() {
         <Outlet />
       </main>
       <nav aria-label="メニュー" className="fixed inset-x-0 bottom-0 border-t border-border bg-card pb-[env(safe-area-inset-bottom)]">
-        <ul className="grid grid-cols-4">
+        <ul className="grid grid-cols-5">
           {TABS.map(({ to, label, icon: Icon }) => (
             <li key={to}>
               <NavLink

@@ -114,3 +114,37 @@ export const restTimerApi = {
 }
 
 export { api }
+
+export const programsApi = {
+  rules: async () => unwrap<Schemas['ProgramRulesResponse']>(await api.GET('/api/programs/rules')),
+  saveRules: async (body: Schemas['ProgramRulesSaveParams']) =>
+    unwrap<Schemas['ProgramRulesResponse']>(await api.PUT('/api/programs/rules', { body })),
+  past: async () => unwrap<Schemas['PastProgramResponse'][]>(await api.GET('/api/programs/past')),
+}
+
+export const programImportsApi = {
+  preview: async (jsonText: string) =>
+    unwrap<Schemas['ProgramPreviewValidResponse'] | Schemas['ProgramPreviewInvalidResponse']>(
+      await api.POST('/api/program-imports/preview', { body: { json_text: jsonText } }),
+    ),
+  create: async (jsonText: string) =>
+    unwrap<Schemas['ProgramImportedResponse']>(
+      await api.POST('/api/program-imports', { body: { json_text: jsonText } }),
+    ),
+}
+
+export const promptsApi = {
+  programGeneration: async () =>
+    unwrap<Schemas['PromptResponse']>(await api.GET('/api/prompts/program-generation')),
+  review: async (query: DateRange) =>
+    unwrap<Schemas['PromptResponse']>(await api.GET('/api/prompts/review', { params: { query } })),
+}
+
+export const analyticsApi = {
+  overview: async (query: DateRange) =>
+    unwrap<Schemas['OverviewResponse']>(await api.GET('/api/analytics/overview', { params: { query } })),
+  exercise: async (uid: string, query: DateRange) =>
+    unwrap<Schemas['ExerciseAnalyticsResponse']>(
+      await api.GET('/api/analytics/exercises/{uid}', { params: { path: { uid }, query } }),
+    ),
+}

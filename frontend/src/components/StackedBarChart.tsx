@@ -74,7 +74,7 @@ export function StackedBarChart({ label, data }: { label: string; data: VolumeBa
         </ul>
       )}
       <svg viewBox={`0 0 ${WIDTH} ${HEIGHT}`} role="img" aria-label={label} className="h-auto w-full">
-        <g className="stroke-solid-gray-100">
+        <g className="stroke-solid-gray-100 dark:stroke-solid-gray-700">
           <line x1={PLOT_LEFT} y1={PLOT_TOP} x2={PLOT_RIGHT} y2={PLOT_TOP} />
           <line x1={PLOT_LEFT} y1={PLOT_TOP + PLOT_HEIGHT / 2} x2={PLOT_RIGHT} y2={PLOT_TOP + PLOT_HEIGHT / 2} />
         </g>

@@ -375,13 +375,14 @@ export function AnalyticsPage(): ReactElement {
   return (
     <div className="flex flex-col gap-4 p-4">
       <h1 className="text-std-24B-150">分析</h1>
-      <Tab>
+      <Tab className="dark:text-solid-gray-50">
         <TabList aria-label="分析の対象">
           {(['overview', 'exercise'] as const).map((candidate) => (
             <TabItem
               key={candidate}
               href={candidate === 'exercise' ? '?tab=exercise' : '?'}
               aria-current={tab === candidate ? 'page' : undefined}
+              className="dark:bg-solid-gray-800"
               onClick={(event) => {
                 event.preventDefault()
                 setSearchParams(candidate === 'exercise' ? { tab: 'exercise' } : {})

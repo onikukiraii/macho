@@ -30,6 +30,13 @@ function SeriesPath({ variant, points }: { variant: LineVariant; points: string 
   }
 }
 
+// 左右端の目盛りを中央揃えにすると文字が枠の外にはみ出すため、内側へ寄せる
+function tickAnchor(index: number, count: number): 'start' | 'middle' | 'end' {
+  if (count === 1) return 'middle'
+  if (index === 0) return 'start'
+  return index === count - 1 ? 'end' : 'middle'
+}
+
 function LegendSample({ variant }: { variant: LineVariant }): ReactElement {
   return (
     <svg aria-hidden width={20} height={10} className="shrink-0">
@@ -61,7 +68,7 @@ export function LineChart({ label, series, yAxis, formatX, formatY }: LineChartP
         ))}
       </ul>
       <svg viewBox={`0 0 ${WIDTH} ${HEIGHT}`} role="img" aria-label={label} className="h-auto w-full">
-        <g className="stroke-solid-gray-100">
+        <g className="stroke-solid-gray-100 dark:stroke-solid-gray-700">
           <line x1={PLOT_LEFT} y1={toPlotY(yRange.max)} x2={PLOT_RIGHT} y2={toPlotY(yRange.max)} />
           <line x1={PLOT_LEFT} y1={toPlotY(yMiddle)} x2={PLOT_RIGHT} y2={toPlotY(yMiddle)} />
         </g>
@@ -73,9 +80,9 @@ export function LineChart({ label, series, yAxis, formatX, formatY }: LineChartP
             </text>
           ))}
         </g>
-        <g className="fill-muted-foreground text-dns-14N-130" textAnchor="middle">
-          {xTicks.map((x) => (
-            <text key={x} x={toPlotX(x)} y={HEIGHT - 4}>
+        <g className="fill-muted-foreground text-dns-14N-130">
+          {xTicks.map((x, index) => (
+            <text key={x} x={toPlotX(x)} y={HEIGHT - 4} textAnchor={tickAnchor(index, xTicks.length)}>
               {formatX(x)}
             </text>
           ))}

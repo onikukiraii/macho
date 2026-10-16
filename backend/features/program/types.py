@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, datetime
 from enum import StrEnum
 
 
@@ -90,3 +90,15 @@ class NewProgram:
     tm_auto_update: bool
     design_note: str
     weeks: tuple[NewProgramWeek, ...]
+
+
+@dataclass(frozen=True)
+class PastProgram:
+    program: Program
+    end_date: date
+
+
+@dataclass(frozen=True)
+class ProgramRules:
+    body: str
+    updated_at: datetime | None

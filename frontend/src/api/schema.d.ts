@@ -57,6 +57,143 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/programs/rules": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Program Rules */
+        get: operations["get_program_rules_api_programs_rules_get"];
+        /** Update Program Rules */
+        put: operations["update_program_rules_api_programs_rules_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/programs/past": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Past Programs */
+        get: operations["get_past_programs_api_programs_past_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/program-imports/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create Program Preview */
+        post: operations["create_program_preview_api_program_imports_preview_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/program-imports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create Program Import */
+        post: operations["create_program_import_api_program_imports_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/prompts/program-generation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Program Generation Prompt */
+        get: operations["get_program_generation_prompt_api_prompts_program_generation_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/prompts/review": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Review Prompt */
+        get: operations["get_review_prompt_api_prompts_review_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/analytics/overview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Overview */
+        get: operations["get_overview_api_analytics_overview_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/analytics/exercises/{uid}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Exercise Analytics */
+        get: operations["get_exercise_analytics_api_analytics_exercises__uid__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/training-logs": {
         parameters: {
             query?: never;
@@ -304,11 +441,54 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** AnnualVolumeResponse */
+        AnnualVolumeResponse: {
+            /** Year */
+            year: number;
+            /** This Year */
+            this_year: components["schemas"]["MonthlyCumulativeVolumeResponse"][];
+            /** Last Year */
+            last_year: components["schemas"]["MonthlyCumulativeVolumeResponse"][];
+            /** Change Rate */
+            change_rate: number | null;
+            /** Last Year Total Volume */
+            last_year_total_volume: number;
+        };
+        /** Big3LiftResponse */
+        Big3LiftResponse: {
+            /** Exercise Name */
+            exercise_name: string;
+            /** E1Rm */
+            e1rm: number | null;
+        };
+        /** Big3TotalResponse */
+        Big3TotalResponse: {
+            /** Lifts */
+            lifts: components["schemas"]["Big3LiftResponse"][];
+            /** Total */
+            total: number;
+            /** Goal */
+            goal: number;
+        };
         /**
          * BodyPart
          * @enum {string}
          */
         BodyPart: "chest" | "back" | "shoulders" | "arms" | "legs" | "abs";
+        /** BodyPartShareResponse */
+        BodyPartShareResponse: {
+            body_part: components["schemas"]["BodyPart"];
+            /** Volume */
+            volume: number;
+            /** Share */
+            share: number;
+        };
+        /** BodyPartVolumeResponse */
+        BodyPartVolumeResponse: {
+            body_part: components["schemas"]["BodyPart"];
+            /** Volume */
+            volume: number;
+        };
         /** DayOptionResponse */
         DayOptionResponse: {
             /** Program Day Uid */
@@ -340,6 +520,42 @@ export interface components {
          * @enum {string}
          */
         DayStatus: "done" | "missed" | "next" | "pending";
+        /** DraftIssueResponse */
+        DraftIssueResponse: {
+            /** Location */
+            location: string;
+            /** Message */
+            message: string;
+        };
+        /** E1rmPointResponse */
+        E1rmPointResponse: {
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** E1Rm */
+            e1rm: number;
+        };
+        /** ExerciseAnalyticsResponse */
+        ExerciseAnalyticsResponse: {
+            /** Exercise Name */
+            exercise_name: string;
+            /** Max Weight */
+            max_weight: number | null;
+            /** Max E1Rm */
+            max_e1rm: number | null;
+            /** Total Volume */
+            total_volume: number;
+            /** E1Rm Points */
+            e1rm_points: components["schemas"]["E1rmPointResponse"][];
+            /** Training Max Points */
+            training_max_points: components["schemas"]["TrainingMaxPointResponse"][];
+            /** Weekly Volumes */
+            weekly_volumes: components["schemas"]["ExerciseVolumeBucketResponse"][];
+            /** Monthly Volumes */
+            monthly_volumes: components["schemas"]["ExerciseVolumeBucketResponse"][];
+        };
         /** ExerciseDetailResponse */
         ExerciseDetailResponse: {
             exercise: components["schemas"]["ExerciseResponse"];
@@ -404,10 +620,74 @@ export interface components {
             /** Default Rest Seconds */
             default_rest_seconds: number;
         };
+        /** ExerciseVolumeBucketResponse */
+        ExerciseVolumeBucketResponse: {
+            /**
+             * Start
+             * Format: date
+             */
+            start: string;
+            /** Volume */
+            volume: number;
+        };
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
+        };
+        /** MonthlyCumulativeVolumeResponse */
+        MonthlyCumulativeVolumeResponse: {
+            /** Month */
+            month: number;
+            /** Cumulative Volume */
+            cumulative_volume: number;
+        };
+        /** NewExerciseResponse */
+        NewExerciseResponse: {
+            /** Name */
+            name: string;
+            body_part: components["schemas"]["BodyPart"];
+            /** Parent Name */
+            parent_name: string | null;
+            /** Coefficient */
+            coefficient: number | null;
+            /** Increment Kg */
+            increment_kg: number;
+            /** Default Rest Seconds */
+            default_rest_seconds: number;
+        };
+        /** OverviewResponse */
+        OverviewResponse: {
+            summary: components["schemas"]["PeriodSummaryResponse"];
+            /** Weekly Volumes */
+            weekly_volumes: components["schemas"]["VolumeBucketResponse"][];
+            /** Monthly Volumes */
+            monthly_volumes: components["schemas"]["VolumeBucketResponse"][];
+            /** Body Part Shares */
+            body_part_shares: components["schemas"]["BodyPartShareResponse"][];
+            annual: components["schemas"]["AnnualVolumeResponse"];
+            big3: components["schemas"]["Big3TotalResponse"];
+        };
+        /** PastProgramResponse */
+        PastProgramResponse: {
+            /** Uid */
+            uid: string;
+            /** Name */
+            name: string;
+            /**
+             * Start Date
+             * Format: date
+             */
+            start_date: string;
+            /**
+             * End Date
+             * Format: date
+             */
+            end_date: string;
+            /** Week Count */
+            week_count: number;
+            /** Design Note */
+            design_note: string;
         };
         /** PerformedExerciseCreateParams */
         PerformedExerciseCreateParams: {
@@ -443,6 +723,19 @@ export interface components {
             /** Sets */
             sets: components["schemas"]["SetResponse"][];
         };
+        /** PeriodSummaryResponse */
+        PeriodSummaryResponse: {
+            /** Total Volume */
+            total_volume: number;
+            /** Change Rate */
+            change_rate: number | null;
+            /** Training Days */
+            training_days: number;
+            /** Set Count */
+            set_count: number;
+            /** Volume Per Training Day */
+            volume_per_training_day: number;
+        };
         /** PlannedResponse */
         PlannedResponse: {
             /** Sets */
@@ -455,6 +748,42 @@ export interface components {
             target_rpe: number | null;
             /** Target Percent */
             target_percent: number | null;
+        };
+        /** PreviewDayResponse */
+        PreviewDayResponse: {
+            /** Day */
+            day: number;
+            weekday: components["schemas"]["Weekday"];
+            /** Exercises */
+            exercises: components["schemas"]["PreviewPlannedExerciseResponse"][];
+        };
+        /** PreviewPlannedExerciseResponse */
+        PreviewPlannedExerciseResponse: {
+            /** Exercise Name */
+            exercise_name: string;
+            /** Is New Exercise */
+            is_new_exercise: boolean;
+            /** Sets */
+            sets: number;
+            /** Reps */
+            reps: number;
+            /** Reps Max */
+            reps_max: number | null;
+            /** Target Rpe */
+            target_rpe: number | null;
+            /** Target Percent */
+            target_percent: number | null;
+            /** Target Weight */
+            target_weight: number | null;
+        };
+        /** PreviewWeekResponse */
+        PreviewWeekResponse: {
+            /** Week */
+            week: number;
+            /** Label */
+            label: string;
+            /** Days */
+            days: components["schemas"]["PreviewDayResponse"][];
         };
         /** PreviousResultResponse */
         PreviousResultResponse: {
@@ -476,6 +805,51 @@ export interface components {
             weekday: components["schemas"]["Weekday"];
             status: components["schemas"]["DayStatus"];
         };
+        /** ProgramImportParams */
+        ProgramImportParams: {
+            /** Json Text */
+            json_text: string;
+        };
+        /** ProgramImportedResponse */
+        ProgramImportedResponse: {
+            /** Uid */
+            uid: string;
+            /** Name */
+            name: string;
+        };
+        /** ProgramPreviewInvalidResponse */
+        ProgramPreviewInvalidResponse: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            status: "invalid";
+            /** Issues */
+            issues: components["schemas"]["DraftIssueResponse"][];
+        };
+        /** ProgramPreviewValidResponse */
+        ProgramPreviewValidResponse: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            status: "valid";
+            /** Name */
+            name: string;
+            /**
+             * Start Date
+             * Format: date
+             */
+            start_date: string;
+            /** Tm Auto Update */
+            tm_auto_update: boolean;
+            /** Design Note */
+            design_note: string;
+            /** New Exercises */
+            new_exercises: components["schemas"]["NewExerciseResponse"][];
+            /** Weeks */
+            weeks: components["schemas"]["PreviewWeekResponse"][];
+        };
         /** ProgramProgressResponse */
         ProgramProgressResponse: {
             /** Name */
@@ -494,6 +868,18 @@ export interface components {
             /** Weeks */
             weeks: components["schemas"]["ProgramWeekProgressResponse"][];
         };
+        /** ProgramRulesResponse */
+        ProgramRulesResponse: {
+            /** Body */
+            body: string;
+            /** Updated At */
+            updated_at: string | null;
+        };
+        /** ProgramRulesSaveParams */
+        ProgramRulesSaveParams: {
+            /** Body */
+            body: string;
+        };
         /** ProgramWeekProgressResponse */
         ProgramWeekProgressResponse: {
             /** Week */
@@ -502,6 +888,11 @@ export interface components {
             label: string;
             /** Days */
             days: components["schemas"]["ProgramDayProgressResponse"][];
+        };
+        /** PromptResponse */
+        PromptResponse: {
+            /** Text */
+            text: string;
         };
         /** PushSubscriptionCreateParams */
         PushSubscriptionCreateParams: {
@@ -651,6 +1042,16 @@ export interface components {
             /** Reason */
             reason: string;
         };
+        /** TrainingMaxPointResponse */
+        TrainingMaxPointResponse: {
+            /**
+             * Effective On
+             * Format: date
+             */
+            effective_on: string;
+            /** Value */
+            value: number;
+        };
         /** TrainingMaxResponse */
         TrainingMaxResponse: {
             /** Value */
@@ -690,6 +1091,16 @@ export interface components {
             input?: unknown;
             /** Context */
             ctx?: Record<string, never>;
+        };
+        /** VolumeBucketResponse */
+        VolumeBucketResponse: {
+            /**
+             * Start
+             * Format: date
+             */
+            start: string;
+            /** Volumes */
+            volumes: components["schemas"]["BodyPartVolumeResponse"][];
         };
         /**
          * Weekday
@@ -846,6 +1257,263 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ExerciseDetailResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_program_rules_api_programs_rules_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProgramRulesResponse"];
+                };
+            };
+        };
+    };
+    update_program_rules_api_programs_rules_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProgramRulesSaveParams"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProgramRulesResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_past_programs_api_programs_past_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PastProgramResponse"][];
+                };
+            };
+        };
+    };
+    create_program_preview_api_program_imports_preview_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProgramImportParams"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProgramPreviewValidResponse"] | components["schemas"]["ProgramPreviewInvalidResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_program_import_api_program_imports_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProgramImportParams"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProgramImportedResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_program_generation_prompt_api_prompts_program_generation_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PromptResponse"];
+                };
+            };
+        };
+    };
+    get_review_prompt_api_prompts_review_get: {
+        parameters: {
+            query: {
+                from_date: string;
+                to_date: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PromptResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_overview_api_analytics_overview_get: {
+        parameters: {
+            query: {
+                from_date: string;
+                to_date: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OverviewResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_exercise_analytics_api_analytics_exercises__uid__get: {
+        parameters: {
+            query: {
+                from_date: string;
+                to_date: string;
+            };
+            header?: never;
+            path: {
+                uid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExerciseAnalyticsResponse"];
                 };
             };
             /** @description Validation Error */

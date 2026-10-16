@@ -1,9 +1,10 @@
-from datetime import date
+from datetime import date, datetime
 
 from sqlalchemy import Boolean, Date, Float, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from common.db.entities.base import Base
+from common.db.utc_datetime import UtcDateTime
 
 
 class ProgramRow(Base):
@@ -72,3 +73,11 @@ class PlannedExerciseRow(Base):
     target_percent: Mapped[float | None] = mapped_column(Float, nullable=True)
 
     program_day: Mapped[ProgramDayRow] = relationship(back_populates="planned_exercises")
+
+
+class ProgramRulesRow(Base):
+    __tablename__ = "program_rules"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    body: Mapped[str] = mapped_column(Text, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(UtcDateTime, nullable=False)

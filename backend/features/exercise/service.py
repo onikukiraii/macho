@@ -22,6 +22,7 @@ from features.exercise.types import (
     ExerciseDetail,
     ResolvedExercise,
     TrainingMax,
+    TrainingMaxRecord,
     TrainingMaxSource,
     TrainingMaxUpdate,
 )
@@ -120,6 +121,14 @@ def add_training_max(repo: ExerciseRepository, *, uid: str, value: float, reason
         )
     )
     return _build_detail(repo, exercise)
+
+
+def list_training_max_records(repo: ExerciseRepository) -> list[TrainingMaxRecord]:
+    names = {exercise.id: exercise.name for exercise in repo.list_all()}
+    return [
+        TrainingMaxRecord(exercise_name=names[training_max.exercise_id], training_max=training_max)
+        for training_max in sorted(repo.list_training_maxes(), key=lambda training_max: training_max.effective_at)
+    ]
 
 
 def get_calculation_bases(repo: ExerciseRepository, *, on: date) -> dict[int, CalculationBasis]:

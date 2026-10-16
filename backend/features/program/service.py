@@ -1,9 +1,9 @@
-from datetime import date
+from datetime import UTC, date, datetime
 from uuid import uuid4
 
 from features.program import _pure
-from features.program.protocol import ProgramRepository
-from features.program.types import NewProgram, Program, ProgramDayInWeek, Weekday
+from features.program.protocol import ProgramRepository, ProgramRulesRepository
+from features.program.types import NewProgram, PastProgram, Program, ProgramDayInWeek, ProgramRules, Weekday
 
 
 def get_current_program(repo: ProgramRepository) -> Program | None:
@@ -26,3 +26,15 @@ def calculate_guide_date(start_date: date, *, week: int, weekday: Weekday) -> da
 
 def list_days_in_order(program: Program) -> list[ProgramDayInWeek]:
     return _pure.list_days_in_order(program)
+
+
+def list_past_programs(repo: ProgramRepository) -> list[PastProgram]:
+    return _pure.list_past_programs(repo.list_all())
+
+
+def get_program_rules(repo: ProgramRulesRepository) -> ProgramRules:
+    return repo.get()
+
+
+def save_program_rules(repo: ProgramRulesRepository, *, body: str) -> ProgramRules:
+    return repo.save(body=body, updated_at=datetime.now(UTC))

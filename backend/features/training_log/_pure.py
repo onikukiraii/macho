@@ -98,7 +98,9 @@ def calculate_target_weight(
     if planned is None:
         return None
     if basis.tm_owner_id is not None:
-        return _calculate_training_max_weight(basis, planned)
+        return calculate_training_max_weight(
+            basis, reps=planned.reps, target_rpe=planned.target_rpe, target_percent=planned.target_percent
+        )
     is_substituted = planned.exercise_id != basis.exercise_id
     if is_substituted or planned.reps_max is None:
         return None
@@ -268,17 +270,17 @@ def _build_export_rows(
     return rows
 
 
-def _calculate_training_max_weight(basis: CalculationBasis, planned: PlannedExercise) -> float | None:
+def calculate_training_max_weight(
+    basis: CalculationBasis, *, reps: int, target_rpe: float | None, target_percent: float | None
+) -> float | None:
     if basis.training_max is None:
         return None
     base_weight = basis.training_max * basis.coefficient
-    if planned.target_percent is not None:
-        return _round_half_up(base_weight * planned.target_percent / 100, step=PLATE_STEP_KG)
-    if planned.target_rpe is not None:
-        reps_in_reserve = 10 - planned.target_rpe
-        return _round_half_up(
-            base_weight / (1 + (planned.reps + reps_in_reserve) / basis.e1rm_divisor), step=PLATE_STEP_KG
-        )
+    if target_percent is not None:
+        return _round_half_up(base_weight * target_percent / 100, step=PLATE_STEP_KG)
+    if target_rpe is not None:
+        reps_in_reserve = 10 - target_rpe
+        return _round_half_up(base_weight / (1 + (reps + reps_in_reserve) / basis.e1rm_divisor), step=PLATE_STEP_KG)
     return None
 
 

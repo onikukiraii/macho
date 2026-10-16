@@ -1,9 +1,11 @@
+from collections.abc import Sequence
 from dataclasses import replace
 from datetime import date, timedelta
 
 from features.program.types import (
     NewProgram,
     NewProgramWeek,
+    PastProgram,
     Program,
     ProgramDayInWeek,
     Weekday,
@@ -37,3 +39,11 @@ def sort_weeks_and_days(program: NewProgram) -> NewProgram:
             for week in sorted(program.weeks, key=lambda week: week.week)
         ),
     )
+
+
+def list_past_programs(programs: Sequence[Program]) -> list[PastProgram]:
+    newest_first = sorted(programs, key=lambda program: (program.start_date, program.id), reverse=True)
+    return [
+        PastProgram(program=program, end_date=successor.start_date - timedelta(days=1))
+        for successor, program in zip(newest_first, newest_first[1:], strict=False)
+    ]

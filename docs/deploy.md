@@ -84,8 +84,10 @@ docker compose -f compose.prod.yaml down -v
 初回だけ、`data/` の seed から種目、トレーニングマックス、プログラム、過去のトレーニング記録を投入する。seed の形式は `data/README.md` にある。`data/` はイメージに含めず、このコマンドの間だけコンテナへマウントする。種目か記録が1件でもある DB では、スクリプトが中断する。
 
 ```bash
-docker compose -f compose.prod.yaml run --rm -v ./data:/data:ro api uv run python -m scripts.import_legacy --seed-dir /data
+docker compose -f compose.prod.yaml run --rm -v "$PWD/data:/data:ro" api uv run python -m scripts.import_legacy --seed-dir /data
 ```
+
+**`-v` には絶対パスを渡す。** `./data` のような相対パスは、Compose のバージョンによってはボリューム名と解釈されて失敗する。リポジトリのルートで実行し、`$PWD` で絶対パスにする。
 
 **投入の前に `training_maxes.csv` の値を直近の実績に合わせる。** 記録の画面で BIG3 と派生種目の重量欄に出る目標重量は、この値から計算する。行が無い種目は目標重量が出ない。
 

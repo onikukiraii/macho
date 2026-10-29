@@ -4,14 +4,14 @@ type Schemas = components['schemas']
 
 export type SetColumn = { weight: string; reps: string; rir: string }
 
-const UNPLANNED_COLUMN_COUNT = 5
+const UNPLANNED_COLUMN_COUNT = 6
 const MAX_WEIGHT = 500
 const MAX_REPS = 100
 const MAX_RIR = 10
 export const MAX_COLUMN_COUNT = 50
 const EMPTY_COLUMN: SetColumn = { weight: '', reps: '', rir: '' }
 
-/** 保存済みのセットを番号の列に置き、予定のセット数か、予定外なら5つまで空の列で埋める */
+/** 保存済みのセットを番号の列に置き、予定のセット数か、予定外なら6つまで空の列で埋める */
 export function initializeColumns(performed: Pick<Schemas['PerformedExerciseResponse'], 'planned' | 'sets'>): SetColumn[] {
   const count = Math.max(
     performed.planned?.sets ?? UNPLANNED_COLUMN_COUNT,

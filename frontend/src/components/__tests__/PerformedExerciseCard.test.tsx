@@ -59,7 +59,7 @@ afterEach(() => {
 })
 
 describe('PerformedExerciseCard', () => {
-  it('予定種目の空の列には目標重量と予定の回数をプレースホルダに出し、予定外の種目には5つの空の列を並べる', () => {
+  it('予定種目の空の列には目標重量と予定の回数をプレースホルダに出し、予定外の種目には6つの空の列を並べる', () => {
     render(
       <>
         <PerformedExerciseCard
@@ -96,7 +96,7 @@ describe('PerformedExerciseCard', () => {
       ['75', '5'],
       ['75', '5'],
     ])
-    expect(dips.getAllByRole('spinbutton', { name: /の重量$/ })).toHaveLength(5)
+    expect(dips.getAllByRole('spinbutton', { name: /の重量$/ })).toHaveLength(6)
   })
 
   it('種目名を押すとその種目の詳細画面への遷移を記録の画面へ渡す', () => {

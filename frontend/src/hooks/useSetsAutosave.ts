@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react'
 import type { components } from '@/api/schema'
 import { trainingLogsApi } from '@/api/fetcher'
-import { initializeColumns, isValidReps, isValidWeight, toSetParams, type SetColumn } from '@/lib/setColumns'
+import { initializeColumns, isValidReps, isValidRir, isValidWeight, toSetParams, type SetColumn } from '@/lib/setColumns'
 
 type PerformedExercise = components['schemas']['PerformedExerciseResponse']
 
@@ -77,7 +77,9 @@ export function useSetsAutosave(
   }
 
   function saveColumns(nextColumns: SetColumn[]): void {
-    outOfRange.current = nextColumns.some((column) => !isValidWeight(column.weight) || !isValidReps(column.reps))
+    outOfRange.current = nextColumns.some(
+      (column) => !isValidWeight(column.weight) || !isValidReps(column.reps) || !isValidRir(column.rir),
+    )
     if (outOfRange.current) notifyUnsaved()
     else sendColumns(nextColumns)
   }

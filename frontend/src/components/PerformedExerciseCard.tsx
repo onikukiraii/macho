@@ -1,11 +1,10 @@
-import { Fragment, useId, useRef, useState, type MouseEvent, type ReactElement } from 'react'
+import { Fragment, useId, useRef, type MouseEvent, type ReactElement } from 'react'
 import { Link } from 'react-router-dom'
 import { format, parseISO } from 'date-fns'
 import type { components } from '@/api/schema'
 import { Button } from '@/components/Button'
 import { ErrorText } from '@/components/dads/ErrorText'
 import { PerformedExerciseMemoField } from '@/components/PerformedExerciseMemoField'
-import { RirSheet } from '@/components/RirSheet'
 import { useLongPress } from '@/hooks/useLongPress'
 import { useSetsAutosave } from '@/hooks/useSetsAutosave'
 import { formatPlanned, formatSet } from '@/lib/exercises'
@@ -16,6 +15,7 @@ import {
   copyPreviousColumn,
   fillWeightForward,
   isValidReps,
+  isValidRir,
   isValidWeight,
   type SetColumn,
 } from '@/lib/setColumns'
@@ -66,7 +66,6 @@ export function PerformedExerciseCard({
   const columnErrorId = useId()
   const addColumnReasonId = useId()
   const { columns, editColumns, commitColumns, saveFailed, retrySave } = useSetsAutosave(performedExercise, onUnsavedChange)
-  const [rirColumnIndex, setRirColumnIndex] = useState<number | null>(null)
   // 重量を変更せずに欄を離れたときは、後ろの列へ重量をコピーしない。後ろの列で消した重量が戻らないようにするため
   const editedWeightIndex = useRef<number | null>(null)
 
@@ -167,14 +166,20 @@ export function PerformedExerciseCard({
               onBlur={() => commitColumns(columns)}
               className="h-12 rounded-8 border border-solid-gray-600 bg-white text-center text-oln-16N-100 text-solid-gray-800 dark:bg-solid-gray-900 dark:text-solid-gray-50 placeholder:text-solid-gray-420 aria-invalid:border-error-1"
             />
-            <button
-              type="button"
+            <input
+              type="number"
+              inputMode="numeric"
+              step={1}
+              min={0}
+              max={10}
               aria-label={`セット${index + 1}の RIR`}
-              onClick={() => setRirColumnIndex(index)}
-              className="h-12 rounded-8 border border-solid-gray-600 text-oln-16N-100"
-            >
-              {column.rir ?? '-'}
-            </button>
+              aria-invalid={!isValidRir(column.rir)}
+              aria-describedby={isValidRir(column.rir) ? undefined : `${columnErrorId}-rir-${index}`}
+              value={column.rir}
+              onChange={(event) => editColumns(updateColumn(index, { rir: event.target.value }))}
+              onBlur={() => commitColumns(columns)}
+              className="h-12 rounded-8 border border-solid-gray-600 bg-white text-center text-oln-16N-100 text-solid-gray-800 dark:bg-solid-gray-900 dark:text-solid-gray-50 placeholder:text-solid-gray-420 aria-invalid:border-error-1"
+            />
           </div>
         ))}
         </div>
@@ -188,6 +193,9 @@ export function PerformedExerciseCard({
             <ErrorText id={`${columnErrorId}-reps-${index}`}>
               セット{index + 1}の回数は 0〜100 の整数で入力してください
             </ErrorText>
+          )}
+          {!isValidRir(column.rir) && (
+            <ErrorText id={`${columnErrorId}-rir-${index}`}>セット{index + 1}の RIR は 0〜10 の整数で入力してください</ErrorText>
           )}
         </Fragment>
       ))}
@@ -224,11 +232,6 @@ export function PerformedExerciseCard({
         </p>
       )}
       <PerformedExerciseMemoField performedExercise={performedExercise} />
-      <RirSheet
-        open={rirColumnIndex !== null}
-        onClose={() => setRirColumnIndex(null)}
-        onDecide={(rir) => rirColumnIndex !== null && commitColumns(updateColumn(rirColumnIndex, { rir }))}
-      />
     </section>
   )
 }

@@ -4,29 +4,30 @@ import {
   copyPreviousColumn,
   fillWeightForward,
   isValidReps,
+  isValidRir,
   isValidWeight,
   toSetParams,
   type SetColumn,
 } from '../setColumns'
 
-const EMPTY_COLUMN: SetColumn = { weight: '', reps: '', rir: null }
+const EMPTY_COLUMN: SetColumn = { weight: '', reps: '', rir: '' }
 
 describe('fillWeightForward', () => {
   it('後ろの空の列に重量を入れ、重量が入力済みの列は変えない', () => {
     const columns: SetColumn[] = [
       EMPTY_COLUMN,
-      { weight: '102.5', reps: '5', rir: 2 },
+      { weight: '102.5', reps: '5', rir: '2' },
       EMPTY_COLUMN,
-      { weight: '', reps: '3', rir: 1 },
-      { weight: '100', reps: '', rir: null },
+      { weight: '', reps: '3', rir: '1' },
+      { weight: '100', reps: '', rir: '' },
     ]
 
     expect(fillWeightForward(columns, 1)).toEqual([
       EMPTY_COLUMN,
-      { weight: '102.5', reps: '5', rir: 2 },
-      { weight: '102.5', reps: '', rir: null },
-      { weight: '102.5', reps: '3', rir: 1 },
-      { weight: '100', reps: '', rir: null },
+      { weight: '102.5', reps: '5', rir: '2' },
+      { weight: '102.5', reps: '', rir: '' },
+      { weight: '102.5', reps: '3', rir: '1' },
+      { weight: '100', reps: '', rir: '' },
     ])
   })
 })
@@ -34,10 +35,10 @@ describe('fillWeightForward', () => {
 describe('toSetParams', () => {
   it('重量と回数の両方が入った列だけを、列の位置を番号にして返す', () => {
     const columns: SetColumn[] = [
-      { weight: '102.5', reps: '5', rir: 2 },
-      { weight: '102.5', reps: '', rir: null },
-      { weight: '', reps: '6', rir: null },
-      { weight: '0', reps: '0', rir: null },
+      { weight: '102.5', reps: '5', rir: '2' },
+      { weight: '102.5', reps: '', rir: '' },
+      { weight: '', reps: '6', rir: '' },
+      { weight: '0', reps: '0', rir: '' },
     ]
 
     expect(toSetParams(columns)).toEqual([
@@ -50,32 +51,32 @@ describe('toSetParams', () => {
 describe('copyPreviousColumn', () => {
   it('前の列の重量・回数・RIR を指定した列に入れ、ほかの列は変えない', () => {
     const columns: SetColumn[] = [
-      { weight: '102.5', reps: '5', rir: 2 },
-      { weight: '100', reps: '6', rir: 1 },
+      { weight: '102.5', reps: '5', rir: '2' },
+      { weight: '100', reps: '6', rir: '1' },
       EMPTY_COLUMN,
-      { weight: '95', reps: '8', rir: null },
+      { weight: '95', reps: '8', rir: '' },
     ]
 
     expect(copyPreviousColumn(columns, 2)).toEqual([
-      { weight: '102.5', reps: '5', rir: 2 },
-      { weight: '100', reps: '6', rir: 1 },
-      { weight: '100', reps: '6', rir: 1 },
-      { weight: '95', reps: '8', rir: null },
+      { weight: '102.5', reps: '5', rir: '2' },
+      { weight: '100', reps: '6', rir: '1' },
+      { weight: '100', reps: '6', rir: '1' },
+      { weight: '95', reps: '8', rir: '' },
     ])
   })
 
   it.each([
     { case: '前の列が空', previous: EMPTY_COLUMN },
-    { case: '前の列に重量だけが入力されている', previous: { weight: '100', reps: '', rir: null } },
-    { case: '前の列に回数だけが入力されている', previous: { weight: '', reps: '5', rir: 2 } },
+    { case: '前の列に重量だけが入力されている', previous: { weight: '100', reps: '', rir: '' } },
+    { case: '前の列に回数だけが入力されている', previous: { weight: '', reps: '5', rir: '2' } },
   ])('$case なら、指定した列を変えない', ({ previous }) => {
-    const columns: SetColumn[] = [previous, { weight: '100', reps: '6', rir: 1 }]
+    const columns: SetColumn[] = [previous, { weight: '100', reps: '6', rir: '1' }]
 
-    expect(copyPreviousColumn(columns, 1)).toEqual([previous, { weight: '100', reps: '6', rir: 1 }])
+    expect(copyPreviousColumn(columns, 1)).toEqual([previous, { weight: '100', reps: '6', rir: '1' }])
   })
 
   it('前の列が存在しない先頭の列なら、列を変えない', () => {
-    const columns: SetColumn[] = [{ weight: '100', reps: '6', rir: 1 }]
+    const columns: SetColumn[] = [{ weight: '100', reps: '6', rir: '1' }]
 
     expect(copyPreviousColumn(columns, 0)).toEqual(columns)
   })
@@ -83,9 +84,9 @@ describe('copyPreviousColumn', () => {
 
 describe('appendColumn', () => {
   it('末尾に空の列を1つ足す', () => {
-    const columns: SetColumn[] = [{ weight: '102.5', reps: '5', rir: 2 }]
+    const columns: SetColumn[] = [{ weight: '102.5', reps: '5', rir: '2' }]
 
-    expect(appendColumn(columns)).toEqual([{ weight: '102.5', reps: '5', rir: 2 }, EMPTY_COLUMN])
+    expect(appendColumn(columns)).toEqual([{ weight: '102.5', reps: '5', rir: '2' }, EMPTY_COLUMN])
   })
 })
 
@@ -95,7 +96,7 @@ describe('列を変える関数', () => {
     { name: 'copyPreviousColumn', update: (columns: SetColumn[]) => copyPreviousColumn(columns, 1) },
     { name: 'appendColumn', update: appendColumn },
   ])('$name は入力の列を書き換えない', ({ update }) => {
-    const columns: SetColumn[] = [{ weight: '100', reps: '5', rir: 2 }, EMPTY_COLUMN]
+    const columns: SetColumn[] = [{ weight: '100', reps: '5', rir: '2' }, EMPTY_COLUMN]
     const before = structuredClone(columns)
 
     update(columns)
@@ -127,5 +128,18 @@ describe('isValidReps', () => {
     { reps: '2.5', expected: false },
   ])('回数 $reps は $expected', ({ reps, expected }) => {
     expect(isValidReps(reps)).toBe(expected)
+  })
+})
+
+describe('isValidRir', () => {
+  it.each([
+    { rir: '', expected: true },
+    { rir: '0', expected: true },
+    { rir: '10', expected: true },
+    { rir: '-1', expected: false },
+    { rir: '11', expected: false },
+    { rir: '1.5', expected: false },
+  ])('RIR $rir は $expected', ({ rir, expected }) => {
+    expect(isValidRir(rir)).toBe(expected)
   })
 })

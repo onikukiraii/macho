@@ -2,13 +2,14 @@ import type { components } from '@/api/schema'
 
 type Schemas = components['schemas']
 
-export type SetColumn = { weight: string; reps: string; rir: number | null }
+export type SetColumn = { weight: string; reps: string; rir: string }
 
 const UNPLANNED_COLUMN_COUNT = 5
 const MAX_WEIGHT = 500
 const MAX_REPS = 100
+const MAX_RIR = 10
 export const MAX_COLUMN_COUNT = 50
-const EMPTY_COLUMN: SetColumn = { weight: '', reps: '', rir: null }
+const EMPTY_COLUMN: SetColumn = { weight: '', reps: '', rir: '' }
 
 /** 保存済みのセットを番号の列に置き、予定のセット数か、予定外なら5つまで空の列で埋める */
 export function initializeColumns(performed: Pick<Schemas['PerformedExerciseResponse'], 'planned' | 'sets'>): SetColumn[] {
@@ -18,7 +19,7 @@ export function initializeColumns(performed: Pick<Schemas['PerformedExerciseResp
   )
   return Array.from({ length: count }, (_, index) => {
     const set = performed.sets.find((saved) => saved.order === index + 1)
-    return set === undefined ? EMPTY_COLUMN : { weight: String(set.weight), reps: String(set.reps), rir: set.rir }
+    return set === undefined ? EMPTY_COLUMN : { weight: String(set.weight), reps: String(set.reps), rir: set.rir === null ? '' : String(set.rir) }
   })
 }
 
@@ -45,8 +46,16 @@ export function isValidWeight(weight: string): boolean {
   return weight === '' || (Number(weight) >= 0 && Number(weight) <= MAX_WEIGHT)
 }
 
+function isIntegerInRange(value: string, max: number): boolean {
+  return value === '' || (Number.isInteger(Number(value)) && Number(value) >= 0 && Number(value) <= max)
+}
+
 export function isValidReps(reps: string): boolean {
-  return reps === '' || (Number.isInteger(Number(reps)) && Number(reps) >= 0 && Number(reps) <= MAX_REPS)
+  return isIntegerInRange(reps, MAX_REPS)
+}
+
+export function isValidRir(rir: string): boolean {
+  return isIntegerInRange(rir, MAX_RIR)
 }
 
 /** 重量と回数の両方が入力された列をセットにする。番号は列の位置で、途中に空の列があれば欠番になる */
@@ -54,6 +63,6 @@ export function toSetParams(columns: SetColumn[]): Schemas['SetParams'][] {
   return columns.flatMap((column, index) =>
     column.weight === '' || column.reps === ''
       ? []
-      : [{ order: index + 1, weight: Number(column.weight), reps: Number(column.reps), rir: column.rir }],
+      : [{ order: index + 1, weight: Number(column.weight), reps: Number(column.reps), rir: column.rir === '' ? null : Number(column.rir) }],
   )
 }

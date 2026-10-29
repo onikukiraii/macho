@@ -1,12 +1,12 @@
-from datetime import date
+from datetime import UTC, date, datetime
 
 import pytest
 from sqlalchemy.orm import Session
 
 from common.errors import BusinessRuleViolation
 from features.exercise.repository import DbExerciseRepository
-from features.exercise.service import add_training_max, create_exercise, list_exercises
-from features.exercise.types import BodyPart
+from features.exercise.service import create_exercise, list_exercises
+from features.exercise.types import BodyPart, TrainingMax, TrainingMaxSource
 from features.program.repository import DbProgramRepository
 from features.program.service import create_program, get_current_program
 from features.program.types import NewPlannedExercise, NewProgram, NewProgramDay, NewProgramWeek, Weekday
@@ -38,7 +38,15 @@ def exercise_repo(db_session: Session) -> DbExerciseRepository:
         increment_kg=2.5,
         default_rest_seconds=180,
     )
-    add_training_max(repo, uid=bench.exercise.uid, value=90.5, reason="初期値")
+    repo.add_training_max(
+        TrainingMax(
+            exercise_id=bench.exercise.id,
+            value=90.5,
+            effective_at=datetime(2026, 10, 14, tzinfo=UTC),
+            source=TrainingMaxSource.manual,
+            reason="初期値",
+        )
+    )
     return repo
 
 

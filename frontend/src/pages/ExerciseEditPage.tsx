@@ -31,7 +31,7 @@ function ExerciseForm({ exercises, editing, initialName, returnTo }: ExerciseFor
   const [coefficient, setCoefficient] = useState(editing?.coefficient?.toString() ?? '1')
   const [e1rmDivisor, setE1rmDivisor] = useState(editing?.e1rm_divisor.toString() ?? '33.3')
   const [incrementKg, setIncrementKg] = useState(editing?.increment_kg.toString() ?? '2.5')
-  const [defaultRestSeconds, setDefaultRestSeconds] = useState(editing?.default_rest_seconds.toString() ?? '90')
+  const [defaultRestSeconds, setDefaultRestSeconds] = useState(editing?.default_rest_seconds.toString() ?? '30')
   const [saving, setSaving] = useState(false)
 
   const parentCandidates = exercises.filter((exercise) => exercise.kind !== 'derived' && exercise.uid !== editing?.uid)

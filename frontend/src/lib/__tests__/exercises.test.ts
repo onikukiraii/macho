@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import type { BodyPart, Exercise } from '@/api/constants'
-import { formatPlanned, formatSet, groupExercisesByBodyPart } from '../exercises'
+import { formatPlanned, formatSet, groupExercisesByBodyPart, isUpdateThresholdReached } from '../exercises'
 
 function buildExercise(name: string, bodyPart: BodyPart): Exercise {
   return {
@@ -64,5 +64,17 @@ describe('groupExercisesByBodyPart', () => {
       ['back', ['ラットプルダウン', '懸垂']],
       ['legs', ['スクワット']],
     ])
+  })
+})
+
+describe('isUpdateThresholdReached', () => {
+  it.each([
+    [90.5, true],
+    [90.4, false],
+    [null, false],
+  ])('週のベスト %s は更新ライン 90.5 に届いているか: %s', (weekBestE1rm, expected) => {
+    expect(
+      isUpdateThresholdReached({ trial_weight: 87.5, update_threshold: 90.5, week_best_e1rm: weekBestE1rm }),
+    ).toBe(expected)
   })
 })

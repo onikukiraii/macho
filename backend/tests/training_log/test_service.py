@@ -23,10 +23,11 @@ from features.training_log.service import (
     get_training_log,
     list_exercise_history,
     list_training_logs,
+    mark_week_evaluated,
     replace_performed_exercise,
     replace_sets,
 )
-from features.training_log.types import ExerciseSet, PreviousResult, TrainingLogCreated
+from features.training_log.types import ExerciseSet, PreviousResult, TrainingLogCreated, TrainingMaxCheck
 
 PROGRAM_START = date(2026, 9, 28)
 WEEKDAYS = (Weekday.mon, Weekday.tue, Weekday.thu, Weekday.fri)
@@ -637,6 +638,37 @@ class TestGetTrainingLog:
 
         assert detail.exercises[0].previous == PreviousResult(
             date=date(2026, 10, 6), top_set=previous_sets[1], sets=tuple(previous_sets)
+        )
+
+    def test_TM_チェックの週のベストは開いた記録と同じ週の記録だけから求める(
+        self, repo: DbTrainingLogRepository, exercise_repo: DbExerciseRepository, program_repo: DbProgramRepository
+    ) -> None:
+        bench = _exercise(exercise_repo, "ベンチプレス")
+        _set_training_max(exercise_repo, bench, 88.0)
+        _program(program_repo, planned=())
+        _record(
+            repo,
+            exercise_repo,
+            program_repo,
+            on=date(2026, 10, 2),
+            sets_by_exercise=[(bench, [ExerciseSet(order=1, weight=90.0, reps=5, rir=2)])],
+        )
+        mark_week_evaluated(exercise_repo, on=date(2026, 10, 2))
+        _record(
+            repo,
+            exercise_repo,
+            program_repo,
+            on=date(2026, 10, 6),
+            sets_by_exercise=[(bench, [ExerciseSet(order=1, weight=77.5, reps=5, rir=2)])],
+        )
+        opened = _record(repo, exercise_repo, program_repo, on=date(2026, 10, 9), sets_by_exercise=[(bench, [])])
+
+        detail = get_training_log(
+            repo, exercise_repo=exercise_repo, program_repo=program_repo, uid=opened.training_log.uid
+        )
+
+        assert detail.exercises[0].training_max_check == TrainingMaxCheck(
+            trial_weight=87.5, update_threshold=90.5, week_best_e1rm=91.1
         )
 
 

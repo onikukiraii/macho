@@ -19,6 +19,7 @@ function buildPerformedExercise(overrides: Partial<PerformedExercise>): Performe
     planned: null,
     target_weight: null,
     previous: null,
+    training_max_check: null,
     default_rest_seconds: 180,
     memo: '',
     sets: [],
@@ -127,6 +128,24 @@ describe('PerformedExerciseCard', () => {
     )
 
     expect(screen.getByRole('spinbutton', { name: 'セット1の重量' })).toHaveAttribute('placeholder', '60')
+  })
+
+  it('TM チェックがある種目は試す重量と今週のベスト e1RM と更新ラインを出し、届いていればそう伝える', () => {
+    renderCard(
+      buildPerformedExercise({
+        training_max_check: { trial_weight: 87.5, update_threshold: 90.5, week_best_e1rm: 91.1 },
+      }),
+    )
+
+    expect(screen.getByText(/87.5 kg × 1（2回いけそうなら RIR 1）/)).toBeInTheDocument()
+    expect(screen.getByText('今週のベスト e1RM 91.1 / 更新ライン 90.5')).toBeInTheDocument()
+    expect(screen.getByText('更新ラインに届いています')).toBeInTheDocument()
+  })
+
+  it('TM チェックの無い種目は TM チェックを出さない', () => {
+    renderCard(buildPerformedExercise({}))
+
+    expect(screen.queryByText('TM チェック')).not.toBeInTheDocument()
   })
 
   it('セットの保存が失敗すると入力を残して未保存を表示し、列の変更か未保存の押下で全セットを送り直す', async () => {

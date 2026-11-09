@@ -7,7 +7,7 @@ import { ErrorText } from '@/components/dads/ErrorText'
 import { PerformedExerciseMemoField } from '@/components/PerformedExerciseMemoField'
 import { useLongPress } from '@/hooks/useLongPress'
 import { useSetsAutosave } from '@/hooks/useSetsAutosave'
-import { formatPlanned, formatSet } from '@/lib/exercises'
+import { formatPlanned, formatSet, isUpdateThresholdReached } from '@/lib/exercises'
 import { formatRestTime } from '@/lib/restTimer'
 import {
   MAX_COLUMN_COUNT,
@@ -51,6 +51,24 @@ function PlannedSummary({ performedExercise }: { performedExercise: PerformedExe
           前回 {format(parseISO(previous.date), 'M/d')} {formatSet(previous.top_set)}
         </p>
       )}
+    </div>
+  )
+}
+
+function TrainingMaxCheckSummary({
+  check,
+}: {
+  check: NonNullable<PerformedExercise['training_max_check']>
+}): ReactElement {
+  return (
+    <div className="flex flex-col gap-1 rounded-8 border border-solid-gray-420 p-2 text-dns-14N-130">
+      <p>
+        <span className="text-dns-14B-130">TM チェック</span> {check.trial_weight} kg × 1（2回いけそうなら RIR 1）
+      </p>
+      <p className="text-muted-foreground">
+        今週のベスト e1RM {check.week_best_e1rm ?? '-'} / 更新ライン {check.update_threshold}
+      </p>
+      {isUpdateThresholdReached(check) && <p className="text-dns-14B-130">更新ラインに届いています</p>}
     </div>
   )
 }
@@ -118,6 +136,9 @@ export function PerformedExerciseCard({
       </div>
       {saveFailed && <ErrorText>セットを保存できませんでした</ErrorText>}
       <PlannedSummary performedExercise={performedExercise} />
+      {performedExercise.training_max_check !== null && (
+        <TrainingMaxCheckSummary check={performedExercise.training_max_check} />
+      )}
       <div className="flex gap-2">
         <div aria-hidden className="flex w-8 shrink-0 flex-col gap-1 text-dns-14N-130 text-muted-foreground">
           <span className="h-11" />

@@ -31,6 +31,7 @@ from features.training_log.dto import (
     TrainingLogDetailResponse,
     TrainingLogSummaryResponse,
     TrainingLogUpdateParams,
+    TrainingMaxCheckResponse,
     TrainingMaxUpdateResponse,
 )
 from features.training_log.protocol import TrainingLogRepository
@@ -331,6 +332,7 @@ def _to_summary_response(summary: TrainingLogSummary) -> TrainingLogSummaryRespo
 def _to_performed_response(detail: PerformedExerciseDetail) -> PerformedExerciseResponse:
     planned = detail.planned
     previous = detail.previous
+    training_max_check = detail.training_max_check
     return PerformedExerciseResponse(
         uid=detail.performed.uid,
         exercise_uid=detail.exercise.uid,
@@ -351,6 +353,13 @@ def _to_performed_response(detail: PerformedExerciseDetail) -> PerformedExercise
             date=previous.date,
             top_set=_to_set_response(previous.top_set),
             sets=[_to_set_response(exercise_set) for exercise_set in previous.sets],
+        ),
+        training_max_check=None
+        if training_max_check is None
+        else TrainingMaxCheckResponse(
+            trial_weight=training_max_check.trial_weight,
+            update_threshold=training_max_check.update_threshold,
+            week_best_e1rm=training_max_check.week_best_e1rm,
         ),
         default_rest_seconds=detail.exercise.default_rest_seconds,
         memo=detail.performed.memo,

@@ -106,12 +106,27 @@ class PreviousResult:
 
 
 @dataclass(frozen=True)
+class WeekBestSet:
+    e1rm: float
+    exercise_name: str
+    exercise_set: ExerciseSet
+
+
+@dataclass(frozen=True)
+class TrainingMaxCheck:
+    trial_weight: float
+    update_threshold: float
+    week_best_e1rm: float | None
+
+
+@dataclass(frozen=True)
 class PerformedExerciseDetail:
     performed: PerformedExercise
     exercise: Exercise
     planned: PlannedExercise | None
     target_weight: float | None
     previous: PreviousResult | None
+    training_max_check: TrainingMaxCheck | None
 
 
 @dataclass(frozen=True)

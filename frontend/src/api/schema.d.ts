@@ -716,6 +716,7 @@ export interface components {
             /** Target Weight */
             target_weight: number | null;
             previous: components["schemas"]["PreviousResultResponse"] | null;
+            training_max_check: components["schemas"]["TrainingMaxCheckResponse"] | null;
             /** Default Rest Seconds */
             default_rest_seconds: number;
             /** Memo */
@@ -1034,6 +1035,15 @@ export interface components {
         TrainingLogUpdateParams: {
             /** Memo */
             memo: string;
+        };
+        /** TrainingMaxCheckResponse */
+        TrainingMaxCheckResponse: {
+            /** Trial Weight */
+            trial_weight: number;
+            /** Update Threshold */
+            update_threshold: number;
+            /** Week Best E1Rm */
+            week_best_e1rm: number | null;
         };
         /** TrainingMaxCreateParams */
         TrainingMaxCreateParams: {

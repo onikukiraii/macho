@@ -117,6 +117,7 @@ describe('TrainingLogPage', () => {
             planned: null,
             target_weight: null,
             previous: null,
+            training_max_check: null,
             default_rest_seconds: 180,
             memo: '',
             sets: [],

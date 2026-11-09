@@ -16,6 +16,8 @@ from features.training_log.types import (
     ScheduledDay,
     TopSet,
     TrainingLog,
+    TrainingMaxCheck,
+    WeekBestSet,
 )
 
 TRAINING_MAX_STEP_KG = 2.5
@@ -113,8 +115,10 @@ def calculate_target_weight(
     return top_set.weight
 
 
-def evaluate_week(logs: Sequence[TrainingLog], *, bases: Mapping[int, CalculationBasis]) -> list[TrainingMaxUpdate]:
-    best_sets: dict[int, tuple[float, str, ExerciseSet]] = {}
+def find_week_best_sets(
+    logs: Sequence[TrainingLog], *, bases: Mapping[int, CalculationBasis]
+) -> dict[int, WeekBestSet]:
+    best_sets: dict[int, WeekBestSet] = {}
     for log in logs:
         for performed in log.exercises:
             basis = bases[performed.exercise_id]
@@ -123,17 +127,26 @@ def evaluate_week(logs: Sequence[TrainingLog], *, bases: Mapping[int, Calculatio
             for exercise_set in performed.sets:
                 e1rm = calculate_e1rm(exercise_set, basis=basis)
                 best = best_sets.get(basis.tm_owner_id)
-                if best is None or e1rm > best[0]:
-                    best_sets[basis.tm_owner_id] = (e1rm, basis.name, exercise_set)
+                if best is None or e1rm > best.e1rm:
+                    best_sets[basis.tm_owner_id] = WeekBestSet(
+                        e1rm=e1rm, exercise_name=basis.name, exercise_set=exercise_set
+                    )
+    return best_sets
 
+
+def calculate_update_threshold(training_max: float) -> float:
+    return training_max + TRAINING_MAX_STEP_KG
+
+
+def evaluate_week(logs: Sequence[TrainingLog], *, bases: Mapping[int, CalculationBasis]) -> list[TrainingMaxUpdate]:
+    best_sets = find_week_best_sets(logs, bases=bases)
     updates = []
     for owner_id, basis in bases.items():
         best = best_sets.get(owner_id)
         if best is None or basis.training_max is None:
             continue
-        e1rm, set_exercise_name, exercise_set = best
-        threshold = basis.training_max + TRAINING_MAX_STEP_KG
-        if e1rm < threshold:
+        threshold = calculate_update_threshold(basis.training_max)
+        if best.e1rm < threshold:
             continue
         updates.append(
             TrainingMaxUpdate(
@@ -142,12 +155,27 @@ def evaluate_week(logs: Sequence[TrainingLog], *, bases: Mapping[int, Calculatio
                 before=basis.training_max,
                 after=threshold,
                 reason=(
-                    f"{set_exercise_name} {exercise_set.weight:g}kg×{exercise_set.reps}回 "
-                    f"RIR{_rir_or_zero(exercise_set)} → e1RM {e1rm:g} ≧ {threshold:g}"
+                    f"{best.exercise_name} {best.exercise_set.weight:g}kg×{best.exercise_set.reps}回 "
+                    f"RIR{_rir_or_zero(best.exercise_set)} → e1RM {best.e1rm:g} ≧ {threshold:g}"
                 ),
             )
         )
     return updates
+
+
+def build_training_max_check(
+    basis: CalculationBasis, *, week_best_sets: Mapping[int, WeekBestSet], tm_auto_update: bool
+) -> TrainingMaxCheck | None:
+    # 派生種目では出さない。TM チェックは TM を持つ種目そのもので行う運用のため
+    is_training_max_owner = basis.tm_owner_id == basis.exercise_id
+    if not tm_auto_update or not is_training_max_owner or basis.training_max is None:
+        return None
+    best = week_best_sets.get(basis.exercise_id)
+    return TrainingMaxCheck(
+        trial_weight=_round_half_up(basis.training_max, step=PLATE_STEP_KG),
+        update_threshold=calculate_update_threshold(basis.training_max),
+        week_best_e1rm=None if best is None else best.e1rm,
+    )
 
 
 def find_next_day(schedule: Sequence[ScheduledDay], *, recorded_day_ids: Collection[int]) -> ScheduledDay | None:

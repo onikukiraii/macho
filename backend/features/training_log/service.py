@@ -15,6 +15,7 @@ from features.training_log import _pure
 from features.training_log._pure import (
     build_export_csv,
     build_previous_result,
+    build_training_max_check,
     calculate_next_exercise_order,
     calculate_next_week_start_at,
     calculate_target_weight,
@@ -22,6 +23,7 @@ from features.training_log._pure import (
     calculate_week_start,
     evaluate_week,
     find_planned_exercise,
+    find_week_best_sets,
     find_week_to_evaluate,
     format_day_label,
     list_day_options,
@@ -347,6 +349,12 @@ def _build_detail(
 ) -> TrainingLogDetail:
     scheduled_day = _lookup(_index_scheduled_days(program_repo, [training_log.date]), training_log.program_day_id)
     bases = exercise_service.get_calculation_bases(exercise_repo, on=training_log.date)
+    program = program_service.get_program_in_progress_on(program_repo, on=training_log.date)
+    tm_auto_update = program is not None and program.tm_auto_update
+    week_start = calculate_week_start(training_log.date)
+    week_best_sets = find_week_best_sets(
+        repo.list_between(from_date=week_start, to_date=calculate_week_end(week_start)), bases=bases
+    )
     exercises = {resolved.exercise.id: resolved.exercise for resolved in exercise_service.list_exercises(exercise_repo)}
     details = []
     for performed in training_log.exercises:
@@ -362,6 +370,9 @@ def _build_detail(
                     basis=basis, planned=planned, previous_sets=() if previous is None else previous.sets
                 ),
                 previous=build_previous_result(previous, e1rm_divisor=basis.e1rm_divisor),
+                training_max_check=build_training_max_check(
+                    basis, week_best_sets=week_best_sets, tm_auto_update=tm_auto_update
+                ),
             )
         )
     return TrainingLogDetail(training_log=training_log, scheduled_day=scheduled_day, exercises=tuple(details))

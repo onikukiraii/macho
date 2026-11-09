@@ -115,6 +115,9 @@ export function ProgramPage(): ReactElement {
           <p className="text-dns-14N-130 text-muted-foreground">
             {formatDateString(program.start_date)} 開始 / 全{program.week_count}週
           </p>
+          <p className="text-dns-14N-130 text-muted-foreground">
+            トレーニングマックス {program.tm_auto_update ? '自動更新する' : '自動更新しない'}
+          </p>
         </div>
         <CreateProgramButton />
       </header>

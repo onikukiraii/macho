@@ -82,6 +82,12 @@ class PreviousResultResponse(BaseModel):
     sets: list[SetResponse]
 
 
+class TrainingMaxCheckResponse(BaseModel):
+    trial_weight: float
+    update_threshold: float
+    week_best_e1rm: float | None
+
+
 class PerformedExerciseResponse(BaseModel):
     uid: str
     exercise_uid: str
@@ -89,6 +95,7 @@ class PerformedExerciseResponse(BaseModel):
     planned: PlannedResponse | None
     target_weight: float | None
     previous: PreviousResultResponse | None
+    training_max_check: TrainingMaxCheckResponse | None
     default_rest_seconds: int
     memo: str
     sets: list[SetResponse]

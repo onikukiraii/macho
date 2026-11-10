@@ -57,6 +57,7 @@ const TRAINING_LOG_WITH_CREATED_EXERCISE: components['schemas']['TrainingLogDeta
       planned: null,
       target_weight: null,
       previous: null,
+      training_max_check: null,
       default_rest_seconds: 90,
       memo: '',
       sets: [],

@@ -6,10 +6,12 @@ from features.exercise.types import BodyPart, CalculationBasis
 from features.program.types import PlannedExercise, ProgramDay, ProgramWeek, Weekday
 from features.training_log._pure import (
     build_export_csv,
+    build_training_max_check,
     calculate_e1rm,
     calculate_target_weight,
     calculate_week_start,
     evaluate_week,
+    find_week_best_sets,
     list_day_options,
     list_day_statuses,
     list_trained_body_parts,
@@ -255,6 +257,44 @@ class TestEvaluateWeek:
         updates = evaluate_week([log], bases=bases)
 
         assert [(update.exercise_id, update.before, update.after) for update in updates] == [(BENCH_ID, 88.0, 90.5)]
+
+
+class TestBuildTrainingMaxCheck:
+    def test_TM_を丸めた試す重量と更新ラインと派生種目を含めた週のベストを返す(self) -> None:
+        log = _log(
+            id=1,
+            on=date(2026, 10, 6),
+            exercises=(
+                _performed(id=1, exercise_id=BENCH_ID, sets=(_set(1, 80.0, 5, 0),), planned_id=None),
+                _performed(id=2, exercise_id=PAUSE_BENCH_ID, sets=(_set(1, 70.0, 5, 2),), planned_id=None),
+            ),
+        )
+        bases = {BENCH_ID: _bench(training_max=88.0), PAUSE_BENCH_ID: _pause_bench(training_max=88.0)}
+
+        check = build_training_max_check(
+            bases[BENCH_ID], week_best_sets=find_week_best_sets([log], bases=bases), tm_auto_update=True
+        )
+
+        assert check is not None
+        assert (check.trial_weight, check.update_threshold, check.week_best_e1rm) == (87.5, 90.5, 94.5)
+
+    def test_週にセットが無ければ週のベストは無い(self) -> None:
+        check = build_training_max_check(_bench(training_max=88.0), week_best_sets={}, tm_auto_update=True)
+
+        assert check is not None
+        assert check.week_best_e1rm is None
+
+    @pytest.mark.parametrize(
+        ("basis", "tm_auto_update"),
+        [
+            pytest.param(_pause_bench(training_max=88.0), True, id="派生種目"),
+            pytest.param(_bench(training_max=None), True, id="TM_が無い"),
+            pytest.param(LAT_PULLDOWN, True, id="ダブルプログレッションの種目"),
+            pytest.param(_bench(training_max=88.0), False, id="TM_を自動更新しないプログラム"),
+        ],
+    )
+    def test_TM_を自動更新する種目でなければ出さない(self, basis: CalculationBasis, tm_auto_update: bool) -> None:
+        assert build_training_max_check(basis, week_best_sets={}, tm_auto_update=tm_auto_update) is None
 
 
 class TestCalculateWeekStart:

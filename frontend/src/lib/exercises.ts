@@ -17,6 +17,11 @@ export function formatPlanned(planned: Schemas['PlannedResponse'], targetWeight:
   ].join('')
 }
 
+/** 週のベストの e1RM が、次の週の評価で TM を上げる値に届いているか */
+export function isUpdateThresholdReached(check: Schemas['TrainingMaxCheckResponse']): boolean {
+  return check.week_best_e1rm !== null && check.week_best_e1rm >= check.update_threshold
+}
+
 /** 部位の並び順で、種目が1つ以上ある部位だけを返す */
 export function groupExercisesByBodyPart(exercises: Exercise[]): { bodyPart: BodyPart; exercises: Exercise[] }[] {
   return BODY_PART_ORDER.map((bodyPart) => ({
